@@ -322,7 +322,7 @@ test('unconfigured blocks inherit the theme; overrides are scoped to the block',
   )
   assert.match(
     siteThemeClasses(createProject().theme),
-    /wb-primary-azure .*wb-body-public-sans/,
+    /wb-primary-iris .*wb-body-geist/,
   )
 })
 

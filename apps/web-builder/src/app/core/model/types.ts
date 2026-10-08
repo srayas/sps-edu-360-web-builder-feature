@@ -248,6 +248,12 @@ export interface DataSource {
 }
 
 export const PALETTES = [
+  'iris',
+  'graphite',
+  'emerald',
+  'ocean',
+  'sunset',
+  'ruby',
   'azure',
   'blue',
   'cyan',

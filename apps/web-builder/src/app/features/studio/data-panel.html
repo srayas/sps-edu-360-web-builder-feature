@@ -183,13 +183,13 @@
             <div class="ui-row ui-align-center"><span class="mat-font-label-lg ui-grow">Sort</span><button matButton type="button" [disabled]="source.query.sort.length >= 5" (click)="addSort(source)"><mat-icon>add</mat-icon>Sort</button></div>
             @for (sort of source.query.sort; track $index; let index = $index) {
               <div class="ui-row ui-gap-2 ui-align-start">
-                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow wb-shrink">
                   <mat-label>Field</mat-label>
                   <mat-select [value]="sort.field" (selectionChange)="editSort(source, index, { field: $event.value })">
                     @for (key of rawKeys(source); track key) { <mat-option [value]="key">{{ key }}</mat-option> }
                   </mat-select>
                 </mat-form-field>
-                <mat-button-toggle-group [value]="sort.direction" (change)="editSort(source, index, { direction: $event.value })" hideSingleSelectionIndicator aria-label="Direction">
+                <mat-button-toggle-group class="wb-no-shrink" [value]="sort.direction" (change)="editSort(source, index, { direction: $event.value })" hideSingleSelectionIndicator aria-label="Direction">
                   <mat-button-toggle value="asc" aria-label="Ascending"><mat-icon>arrow_upward</mat-icon></mat-button-toggle>
                   <mat-button-toggle value="desc" aria-label="Descending"><mat-icon>arrow_downward</mat-icon></mat-button-toggle>
                 </mat-button-toggle-group>

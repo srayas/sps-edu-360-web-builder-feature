@@ -9,6 +9,7 @@ import {
   inject,
   input,
   signal,
+  WritableSignal,
   viewChild,
 } from '@angular/core'
 import { toSignal } from '@angular/core/rxjs-interop'
@@ -189,6 +190,11 @@ export class Studio {
   )
   readonly leftOpen = signal(true)
   readonly rightOpen = signal(true)
+
+  /** Remembers panels the user opens or closes; closing for preview mode is not a user choice. */
+  panelChanged(panel: WritableSignal<boolean>, opened: boolean): void {
+    if (!this.store.preview()) panel.set(opened)
+  }
   readonly saveLabel = computed(
     () =>
       ({

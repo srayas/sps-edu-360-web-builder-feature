@@ -6,12 +6,7 @@
 @use './styles/site';
 @use './styles/studio';
 
-@include ui.all((
-  primary: mat.$azure-palette,
-  tertiary: mat.$violet-palette,
-  font: ('Geist', 'Public Sans', Roboto, sans-serif),
-  brand-font: ('Geist', 'Public Sans', Roboto, sans-serif),
-));
+@include ui.all((accent: iris));
 
 @include site.site-classes();
 @include studio.studio-classes();

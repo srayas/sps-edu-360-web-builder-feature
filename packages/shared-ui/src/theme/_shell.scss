@@ -1,14 +1,62 @@
 // Application shell (side navigation + top bar) used by every app built on shared-ui.
+//
+// 2026 layout: the navigation sits on the quiet canvas and the page is an inset, rounded panel
+// with a hairline edge (Linear / Vercel style). The top bar is translucent glass over content.
 @mixin shell-classes() {
-  .ui-shell { height: 100dvh; }
-  .ui-shell-nav { width: 264px; }
-  .ui-shell-nav .mat-mdc-nav-list .mat-mdc-list-item.ui-nav-child { padding-inline-start: 48px; }
-  .ui-shell-brand { min-height: 64px; text-decoration: none; }
-  .ui-shell-main { min-height: calc(100dvh - 64px); }
-  .ui-nav-bar.mat-toolbar { position: sticky; top: 0; z-index: 2; }
-  .ui-nav-search { width: min(420px, 40vw); }
+  .ui-shell { height: 100dvh; background: var(--mat-sys-surface); }
+  .ui-shell-nav.mat-drawer { width: 248px; border: 0; background: var(--mat-sys-surface); }
+  .ui-shell-nav .mat-mdc-nav-list { padding: 4px 8px; }
+  .ui-shell-nav .mat-mdc-nav-list .mat-mdc-list-item { margin-block: 1px; }
+  .ui-shell-nav .mat-mdc-nav-list .mat-mdc-list-item.ui-nav-child { padding-inline-start: 44px; }
+  .ui-shell-nav .mat-mdc-list-item .mat-mdc-list-item-icon { margin-inline-end: 12px; color: var(--mat-sys-on-surface-variant); }
+  .ui-shell-nav .mdc-list-item__start { --mat-list-list-item-leading-icon-size: 20px; }
+  .ui-shell-brand { min-height: 60px; text-decoration: none; }
+  .ui-brand-mark {
+    display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--ui-accent), color-mix(in oklab, var(--ui-accent) 60%, #ec4899));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), 0 1px 2px rgb(0 0 0 / 0.15);
+  }
+  .ui-brand-mark .mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+  // Inset content panel (desktop); edge-to-edge on handsets.
+  .ui-shell-content.mat-drawer-content {
+    background: var(--mat-sys-surface-container-lowest);
+    border: 1px solid var(--mat-sys-outline-variant);
+    border-radius: 16px;
+    margin: 8px 8px 8px 0;
+    height: calc(100% - 16px);
+    box-shadow: var(--mat-sys-level1);
+  }
+  @media (max-width: 959.98px) {
+    .ui-shell-content.mat-drawer-content { margin: 0; border: 0; border-radius: 0; height: 100%; box-shadow: none; }
+  }
+  .ui-shell-main { min-height: calc(100% - 56px); }
+
+  .ui-nav-bar.mat-toolbar {
+    position: sticky; top: 0; z-index: 3;
+    background: color-mix(in oklab, var(--mat-sys-surface-container-lowest) 78%, transparent);
+    backdrop-filter: saturate(1.6) blur(14px);
+    -webkit-backdrop-filter: saturate(1.6) blur(14px);
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    border-radius: 16px 16px 0 0;
+  }
+  @media (max-width: 959.98px) { .ui-nav-bar.mat-toolbar { border-radius: 0; } }
+  .ui-nav-search { width: min(360px, 36vw); }
   .ui-nav-search .mat-mdc-form-field-subscript-wrapper { display: none; }
   .ui-nav-bar a { text-decoration: none; }
   .ui-nav-bar a:hover { text-decoration: underline; }
-  .ui-active-link { background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); }
+  .ui-active-link.mat-mdc-list-item { background: var(--mat-sys-secondary-container); }
+  .ui-active-link.mat-mdc-list-item .mat-mdc-list-item-title,
+  .ui-active-link.mat-mdc-list-item .mat-mdc-list-item-icon { color: var(--mat-sys-on-secondary-container); }
+  .ui-menu-selected.mat-mdc-menu-item { background: var(--mat-sys-secondary-container); --mat-menu-item-label-text-color: var(--mat-sys-on-secondary-container); --mat-menu-item-icon-color: var(--mat-sys-on-secondary-container); }
+  .ui-accent-dot {
+    width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+    transition: transform var(--ui-duration-short, 150ms) var(--ui-ease-standard, ease), box-shadow var(--ui-duration-short, 150ms);
+  }
+  .ui-accent-dot:hover { transform: scale(1.1); }
+  .ui-accent-dot:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
+  .ui-accent-dot-active { box-shadow: 0 0 0 2px var(--mat-sys-surface-container-lowest), 0 0 0 4px var(--mat-sys-on-surface); }
+  .ui-swatch { display: inline-block; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12); }
 }

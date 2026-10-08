@@ -105,10 +105,10 @@ export function createAction(
 }
 
 export const DEFAULT_THEME: ThemeSettings = {
-  primary: 'azure',
-  tertiary: 'violet',
-  bodyFont: 'Public Sans',
-  headingFont: 'Public Sans',
+  primary: 'iris',
+  tertiary: 'ruby',
+  bodyFont: 'Geist',
+  headingFont: 'Geist',
   density: 0,
   radius: 'medium',
   mode: 'light',

@@ -12,6 +12,7 @@ import {
   PALETTES,
   Palette,
   RADII,
+  ThemeSettings,
   fontClassSlug,
 } from '../../core/model'
 import { BuilderStore } from './builder-store'
@@ -41,6 +42,32 @@ import { BuilderStore } from './builder-store'
           Design.
         </p>
       </div>
+      <section class="ui-column ui-gap-2">
+        <h3 class="mat-font-label-lg ui-m-0">Presets</h3>
+        <div class="wb-presets" role="radiogroup" aria-label="Theme preset">
+          @for (preset of presets; track preset.name) {
+            <button
+              type="button"
+              role="radio"
+              class="wb-preset"
+              [class.wb-preset-active]="isPreset(preset)"
+              [attr.aria-checked]="isPreset(preset)"
+              (click)="applyPreset(preset)"
+            >
+              <span class="wb-preset-colors">
+                <span [class]="'wb-swatch-' + preset.primary"></span>
+                <span [class]="'wb-swatch-' + preset.tertiary"></span>
+              </span>
+              <span class="mat-font-label-md">{{ preset.name }}</span>
+              <span
+                class="mat-font-body-sm mat-text-on-surface-variant"
+                [class]="'wb-font-sample-' + slug(preset.headingFont)"
+                >{{ preset.headingFont }}</span
+              >
+            </button>
+          }
+        </div>
+      </section>
       <section class="ui-column ui-gap-2">
         <h3 class="mat-font-label-lg ui-m-0">Primary color</h3>
         <div class="wb-swatches" role="radiogroup" aria-label="Primary color">
@@ -227,6 +254,76 @@ export class ThemePanel {
   readonly palettes = PALETTES
   readonly fonts = FONTS
   readonly radii = RADII
+  /** Curated modern themes: palette pair, typefaces and corner style in one click. */
+  readonly presets: (Pick<
+    ThemeSettings,
+    'primary' | 'tertiary' | 'headingFont' | 'bodyFont' | 'radius'
+  > & { name: string })[] = [
+    {
+      name: 'Iris',
+      primary: 'iris',
+      tertiary: 'ruby',
+      headingFont: 'Geist',
+      bodyFont: 'Geist',
+      radius: 'medium',
+    },
+    {
+      name: 'Graphite',
+      primary: 'graphite',
+      tertiary: 'ocean',
+      headingFont: 'Geist',
+      bodyFont: 'Geist',
+      radius: 'small',
+    },
+    {
+      name: 'Emerald',
+      primary: 'emerald',
+      tertiary: 'ocean',
+      headingFont: 'Inter',
+      bodyFont: 'Inter',
+      radius: 'medium',
+    },
+    {
+      name: 'Ocean',
+      primary: 'ocean',
+      tertiary: 'emerald',
+      headingFont: 'Montserrat',
+      bodyFont: 'Inter',
+      radius: 'large',
+    },
+    {
+      name: 'Sunset',
+      primary: 'sunset',
+      tertiary: 'ruby',
+      headingFont: 'Poppins',
+      bodyFont: 'Inter',
+      radius: 'large',
+    },
+    {
+      name: 'Editorial',
+      primary: 'ruby',
+      tertiary: 'graphite',
+      headingFont: 'Playfair Display',
+      bodyFont: 'Geist',
+      radius: 'small',
+    },
+  ]
+
+  isPreset(preset: (typeof this.presets)[number]): boolean {
+    const theme = this.store.project().theme
+    return (
+      theme.primary === preset.primary &&
+      theme.tertiary === preset.tertiary &&
+      theme.headingFont === preset.headingFont &&
+      theme.bodyFont === preset.bodyFont &&
+      theme.radius === preset.radius
+    )
+  }
+
+  applyPreset(preset: (typeof this.presets)[number]): void {
+    const { name: _name, ...settings } = preset
+    this.store.updateTheme(settings)
+  }
   label(palette: Palette): string {
     return palette
       .replace('-', ' ')

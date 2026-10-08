@@ -116,8 +116,10 @@ import { ProjectRepository } from '../../core/persistence/project-repository'
                 }}</mat-card-title>
                 <mat-card-subtitle
                   >{{ project.pages }}
-                  {{ project.pages === 1 ? 'page' : 'pages' }} · edited
-                  {{ project.updatedAt | date: 'medium' }}</mat-card-subtitle
+                  {{ project.pages === 1 ? 'page' : 'pages' }} · Edited
+                  {{
+                    project.updatedAt | date: 'MMM d, h:mm a'
+                  }}</mat-card-subtitle
                 >
               </mat-card-header>
               <mat-card-actions class="ui-row ui-align-center ui-gap-2">

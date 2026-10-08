@@ -4,7 +4,12 @@
 // scheme). Each class only re-declares Material system tokens, so every Angular Material
 // component and every `mat-*` utility inside the site picks up the project theme automatically.
 @use 'sass:map';
+@use 'sass:list';
 @use '@angular/material' as mat;
+@use '@spsedu360/shared-ui/src/theme' as ui;
+
+/// Modern accents (shared with the app theme) — site palette name → shared accent name.
+$accents: (iris: iris, graphite: graphite, emerald: emerald, ocean: ocean, sunset: sunset, ruby: rose);
 
 $palettes: (
   'azure': mat.$azure-palette, 'blue': mat.$blue-palette, 'cyan': mat.$cyan-palette, 'spring-green': mat.$spring-green-palette,
@@ -64,15 +69,31 @@ $token-roles: (
   // ---------------------------------------------------------------------------------------
   // Theme settings
   // ---------------------------------------------------------------------------------------
+  // Every site palette gets neutral (zinc) surfaces; the modern accents also get their vivid
+  // primary. Component tokens are re-declared in the site scope so they resolve against the
+  // site's own colours rather than the studio's.
   @each $name, $palette in $palettes {
     .wb-primary-#{$name} {
       @include mat.theme((color: (primary: $palette, tertiary: $palette, theme-type: color-scheme)));
+      @include ui.neutral-surfaces();
     }
+  }
+  @each $name, $accent in $accents {
+    .wb-primary-#{$name} { @include ui.accent-colors($accent); }
+  }
+  .wb-theme {
+    @include ui.component-overrides();
+    @include ui.type-refinements();
   }
   // Declared after the primary classes so the accent wins when both are on one element.
   @each $name, $palette in $palettes {
     .wb-tertiary-#{$name} { @include tertiary-tokens($palette); }
     .wb-swatch-#{$name} { background-color: map.get($palette, 40); }
+  }
+  @each $name, $accent in $accents {
+    $palette: map.get(ui.$accents, $accent, primary);
+    .wb-tertiary-#{$name} { @include tertiary-tokens($palette); }
+    .wb-swatch-#{$name} { background-color: map.get(ui.$accent-primaries, $accent); }
   }
 
   @each $slug, $family in $fonts {
@@ -85,20 +106,58 @@ $token-roles: (
     .wb-font-sample-#{$slug} { font-family: $family; }
   }
 
-  @for $level from 0 through 4 {
-    .wb-density-#{$level} { @include mat.theme((density: -$level)); }
+  // Density: 0 is the modern default (40px fields, 36px buttons); each step is more compact.
+  @each $level, $sizes in (1: (36px, 6px, 34px), 2: (34px, 5px, 32px), 3: (32px, 4px, 30px), 4: (30px, 3px, 28px)) {
+    .wb-density-#{$level} {
+      @include mat.theme((density: -$level));
+      @include mat.form-field-overrides((container-height: list.nth($sizes, 1), container-vertical-padding: list.nth($sizes, 2)));
+      @include mat.button-overrides((
+        filled-container-height: list.nth($sizes, 3), outlined-container-height: list.nth($sizes, 3), tonal-container-height: list.nth($sizes, 3),
+        text-container-height: list.nth($sizes, 3), protected-container-height: list.nth($sizes, 3),
+      ));
+    }
   }
 
   .wb-radius-none { @include corners(0, 0, 0, 0, 0); }
-  .wb-radius-small { @include corners(2px, 4px, 6px, 8px, 12px); }
-  .wb-radius-medium { @include corners(4px, 8px, 12px, 16px, 28px); }
-  .wb-radius-large { @include corners(8px, 12px, 20px, 28px, 36px); }
+  .wb-radius-small { @include corners(4px, 6px, 8px, 10px, 14px); }
+  .wb-radius-medium { @include corners(6px, 8px, 12px, 16px, 24px); }
+  .wb-radius-large { @include corners(8px, 12px, 18px, 24px, 32px); }
   .wb-radius-round { @include corners(12px, 16px, 28px, 36px, 48px); }
 
   .wb-scheme-light { color-scheme: light; }
   .wb-scheme-dark { color-scheme: dark; }
   .wb-scheme-system { color-scheme: light dark; }
 
+  // Modern section surfaces: a neutral canvas with a soft accent glow and faint grid, and a
+  // vivid accent gradient band (CTAs). Both follow the site's own palette and colour scheme.
+  .wb-surface-glow {
+    position: relative; isolation: isolate; color: var(--mat-sys-on-surface);
+    background:
+      radial-gradient(60% 70% at 50% 0%, color-mix(in oklab, var(--mat-sys-primary) 16%, transparent) 0%, transparent 70%),
+      radial-gradient(40% 50% at 90% 10%, color-mix(in oklab, var(--mat-sys-tertiary) 12%, transparent) 0%, transparent 70%),
+      var(--mat-sys-surface);
+  }
+  .wb-surface-glow::before {
+    content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background-image:
+      linear-gradient(color-mix(in oklab, var(--mat-sys-on-surface) 6%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in oklab, var(--mat-sys-on-surface) 6%, transparent) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 70% 70% at 50% 0%, black 25%, transparent 75%);
+  }
+  .wb-surface-gradient {
+    color: var(--mat-sys-on-primary);
+    background:
+      radial-gradient(60% 120% at 100% 0%, color-mix(in oklab, var(--mat-sys-tertiary) 55%, transparent) 0%, transparent 70%),
+      linear-gradient(135deg, var(--mat-sys-primary), color-mix(in oklab, var(--mat-sys-primary) 70%, black));
+    --mat-button-filled-container-color: var(--mat-sys-on-primary);
+    --mat-button-filled-label-text-color: var(--mat-sys-primary);
+    --mat-button-outlined-label-text-color: var(--mat-sys-on-primary);
+    --mat-button-outlined-outline-color: color-mix(in oklab, var(--mat-sys-on-primary) 50%, transparent);
+    --mat-button-tonal-container-color: var(--mat-sys-on-primary);
+    --mat-button-tonal-label-text-color: var(--mat-sys-primary);
+  }
+  .wb-surface-gradient .mat-text-on-surface-variant { color: color-mix(in oklab, var(--mat-sys-on-primary) 80%, transparent); }
   .wb-bg-tertiary-container { background-color: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container); }
   @each $role in $token-roles {
     .wb-token-#{$role} { background: var(--mat-sys-#{$role}); }

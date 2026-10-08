@@ -50,8 +50,10 @@ import { ShellService, Team } from './shell.service'
               class="ui-row ui-align-center ui-gap-3 ui-px-4 ui-shell-brand mat-text-on-surface"
               aria-label="Home"
             >
-              <mat-icon class="mat-text-primary">{{ brandIcon() }}</mat-icon>
-              <span class="mat-font-title-lg">{{ shell.title() }}</span>
+              <span class="ui-brand-mark"
+                ><mat-icon>{{ brandIcon() }}</mat-icon></span
+              >
+              <span class="mat-font-title-md">{{ shell.title() }}</span>
             </a>
             <mat-nav-list
               class="ui-grow ui-scroll"
@@ -98,7 +100,7 @@ import { ShellService, Team } from './shell.service'
           </div>
         </mat-sidenav>
       }
-      <mat-sidenav-content>
+      <mat-sidenav-content class="ui-shell-content">
         <ui-nav-bar
           [showMenuToggle]="shell.showNavigation()"
           (menuToggle)="userOpened.set(!opened())"

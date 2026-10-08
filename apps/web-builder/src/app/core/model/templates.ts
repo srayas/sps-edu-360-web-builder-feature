@@ -80,7 +80,7 @@ const header = n(
 
 const hero = n(
   'section',
-  { surface: 'primary-container', padding: '8', align: 'center' },
+  { surface: 'glow', padding: '8', align: 'center' },
   [
     n('stack', { align: 'center', gap: '5' }, [
       n('badge', {
@@ -364,7 +364,7 @@ const faq = n(
 
 const cta = n(
   'section',
-  { surface: 'primary', padding: '8' },
+  { surface: 'gradient', padding: '8' },
   [
     n('stack', { align: 'center', gap: '4' }, [
       heading('Ready to get started?', 'headline-lg', { textAlign: 'center' }),

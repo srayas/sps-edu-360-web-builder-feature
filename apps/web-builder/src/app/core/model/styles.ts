@@ -283,6 +283,8 @@ const SURFACE_TEXT: Record<string, string> = {
 export function surfaceClasses(surface: string): string[] {
   if (!surface || surface === 'none') return []
   if (surface === 'tertiary-container') return ['wb-bg-tertiary-container']
+  if (surface === 'glow') return ['wb-surface-glow']
+  if (surface === 'gradient') return ['wb-surface-gradient']
   return SURFACE_TEXT[surface]
     ? [`mat-bg-${surface}`, SURFACE_TEXT[surface]]
     : []

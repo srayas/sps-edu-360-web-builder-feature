@@ -54,21 +54,13 @@ export type ExprPurpose = 'condition' | 'value' | 'filter'
           class="ui-grow"
         >
           @if (purpose() !== 'value') {
-            <mat-button-toggle value="conditions"
-              ><mat-icon>rule</mat-icon> Conditions</mat-button-toggle
-            >
+            <mat-button-toggle value="conditions">Conditions</mat-button-toggle>
           }
           @if (purpose() === 'value') {
-            <mat-button-toggle value="template"
-              ><mat-icon>text_fields</mat-icon> Text</mat-button-toggle
-            >
-            <mat-button-toggle value="conditions"
-              ><mat-icon>rule</mat-icon> Yes/No</mat-button-toggle
-            >
+            <mat-button-toggle value="template">Text</mat-button-toggle>
+            <mat-button-toggle value="conditions">Yes/No</mat-button-toggle>
           }
-          <mat-button-toggle value="rule"
-            ><mat-icon>data_object</mat-icon> JSON</mat-button-toggle
-          >
+          <mat-button-toggle value="rule">JSON</mat-button-toggle>
         </mat-button-toggle-group>
         @if (clearable()) {
           <button

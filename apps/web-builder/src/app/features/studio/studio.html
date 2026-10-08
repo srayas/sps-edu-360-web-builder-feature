@@ -49,7 +49,7 @@
   } @else {
     <mat-sidenav-container class="wb-studio-body ui-grow">
       <mat-sidenav class="wb-panel wb-panel-left" position="start" [mode]="compact() ? 'over' : 'side'"
-                   [opened]="leftOpen() && !store.preview()" (openedChange)="leftOpen.set($event)" [autoFocus]="false">
+                   [opened]="leftOpen() && !store.preview()" (openedChange)="panelChanged(leftOpen, $event)" [autoFocus]="false">
         <mat-tab-group class="wb-panel-tabs wb-icon-tabs ui-full-height" [selectedIndex]="leftTabIndex()" (selectedIndexChange)="selectTab($event)" mat-stretch-tabs animationDuration="0ms">
           <mat-tab aria-label="Add blocks">
             <ng-template mat-tab-label><span class="ui-column ui-align-center"><mat-icon>add_box</mat-icon><span class="mat-font-label-sm">Add</span></span></ng-template>
@@ -79,7 +79,7 @@
       </mat-sidenav>
 
       <mat-sidenav class="wb-panel wb-panel-right" position="end" [mode]="compact() ? 'over' : 'side'"
-                   [opened]="rightOpen() && !store.preview()" (openedChange)="rightOpen.set($event)" [autoFocus]="false">
+                   [opened]="rightOpen() && !store.preview()" (openedChange)="panelChanged(rightOpen, $event)" [autoFocus]="false">
         <wb-inspector />
       </mat-sidenav>
 

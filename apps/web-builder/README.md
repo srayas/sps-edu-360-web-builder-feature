@@ -27,6 +27,18 @@ The Angular 22.2 CLI needs Node.js 22.22.3+ or 24.15+.
 * **Built sites follow the project theme.** `src/styles/_site.scss` turns each project theme setting (primary and accent palette, heading and body font, density, corner style, color scheme) into a class that re-declares Material system tokens on the site root and on overlay panels.
 * **User overrides are opt-in and scoped.** The inspector's Design tab writes per-block CSS for all screens, tablet or mobile. Overrides are allow-listed and compiled into one generated stylesheet keyed by the block id (`.wb-el-<id>`), so templates stay free of inline styles. "Reset to theme" removes them.
 
+## Look and feel (2026 refresh)
+
+The theme follows what current product UIs (Linear, Vercel, shadcn/ui, Material 3 Expressive) have converged on, implemented entirely with Angular Material's token APIs in `packages/shared-ui/src/theme`:
+
+* **Neutral first, one vivid accent.** `mat.theme-overrides` replaces M3's tinted neutrals with zinc surfaces (`#fafafa` canvas and white cards in light; `#09090b` canvas with tone-stepped containers in dark). Tonal surfaces are a light wash of the accent.
+* **Six accents.** Iris, Graphite, Emerald, Ocean, Sunset and Rose palettes are generated with `ng generate @angular/material:theme-color` (`_palettes.scss`). Light-mode primaries are the most vivid shade that still meets 4.5:1 with white text. Switch them, along with light, dark or system mode, from the appearance menu.
+* **Hairlines over shadows.** Panels and cards use 1px outline-variant borders. Elevation is a layered, low-alpha shadow scale used for menus, dialogs and floating panels.
+* **Shapes and density.** The corner scale is 6/8/12/16/24px. Controls are rounded squares: 36px buttons, 40px outlined fields and 10px icon buttons. Chips and switches stay pill-shaped.
+* **Type.** Geist, with tight tracking on display and headline sizes and semibold titles.
+* **Layout.** The page sits in an inset rounded panel beside the navigation, under a translucent (glass) top bar. The studio canvas is a dotted grid.
+* **Built sites.** Sites get the same neutral surfaces and modern accents, one-click presets in the Theme panel (Iris, Graphite, Emerald, Ocean, Sunset, Editorial), and the "Accent glow" and "Accent gradient" section surfaces.
+
 ## Building blocks
 
 All blocks are declared in `src/app/core/model/registry.ts` (props, defaults, events, placement rules) and rendered with Angular Material in `src/app/features/renderer`.

@@ -110,6 +110,8 @@ export const JUSTIFY_OPTIONS = o(
 export const SURFACE_OPTIONS = o(
   ['none', 'Transparent'],
   ['surface', 'Surface'],
+  ['glow', 'Accent glow'],
+  ['gradient', 'Accent gradient'],
   ['surface-container-lowest', 'Container lowest'],
   ['surface-container-low', 'Container low'],
   ['surface-container', 'Container'],

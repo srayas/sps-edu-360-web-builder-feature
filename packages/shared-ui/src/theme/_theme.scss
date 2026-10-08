@@ -1,22 +1,340 @@
-// spsEdu360 application theme.
+// spsEdu360 application theme — "Neutral + accent" (2026).
 //
 // One Material 3 theme for every Angular app in the workspace. Components never ship their own
 // stylesheets: they compose Angular Material components, Material's system utility classes
 // (`mat-bg-*`, `mat-text-*`, `mat-font-*`, `mat-corner-*`, `mat-shadow-*`) and the layout classes
-// in `_layout.scss`. Brand changes happen here, through Material's token APIs only.
+// in `_layout.scss`. Brand changes happen here, through Material's token APIs only:
+//
+//  * `mat.theme` generates the M3 system from an accent palette (see `_palettes.scss`).
+//  * `mat.theme-overrides` replaces the tinted M3 neutrals with true zinc surfaces, hairline
+//    outlines, layered low-alpha elevation, a refined shape scale and tighter display type.
+//  * `mat.<component>-overrides` tune heights, radii and weights so controls read as modern UI
+//    (40px fields, 36px buttons, rounded-square icon buttons, flat hairline panels).
+//
+// Accents are switchable at runtime with a class on <html> (`ui-accent-<name>`), and light/dark
+// with `light-theme` / `dark-theme`; without a class the OS preference wins.
 @use 'sass:map';
 @use '@angular/material' as mat;
+@use './palettes';
+
+$font-stack: ('Geist', 'Inter', 'Public Sans', Roboto, system-ui, sans-serif);
 
 $default-config: (
-  primary: mat.$azure-palette,
-  tertiary: mat.$violet-palette,
-  font: ('Public Sans', Roboto, sans-serif),
-  brand-font: ('Public Sans', Roboto, sans-serif),
+  accent: iris,
+  font: $font-stack,
+  brand-font: $font-stack,
   density: 0,
 );
 
-/// Emits the Material system tokens, light/dark switching and the system utility classes.
-/// @param {Map} $config Overrides for `$default-config`.
+/// Vivid but accessible (≥ 4.5:1 with white) light-mode primaries; dark mode uses tone 80.
+$accent-primaries: (
+  iris: #5b5bd6,
+  graphite: #18181b,
+  emerald: #03865b,
+  ocean: #0277b6,
+  sunset: #c9480a,
+  rose: #e11d48,
+);
+
+/// Soft, layered elevation (two low-alpha shadows per level) used by menus, dialogs and cards.
+$elevation: (
+  level0: none,
+  level1: (0 1px 2px rgb(0 0 0 / 0.05), 0 1px 1px rgb(0 0 0 / 0.03)),
+  level2: (0 1px 2px rgb(0 0 0 / 0.04), 0 4px 12px -2px rgb(0 0 0 / 0.08)),
+  level3: (0 2px 4px rgb(0 0 0 / 0.04), 0 12px 28px -6px rgb(0 0 0 / 0.14)),
+  level4: (0 4px 8px rgb(0 0 0 / 0.05), 0 20px 40px -8px rgb(0 0 0 / 0.18)),
+  level5: (0 8px 16px rgb(0 0 0 / 0.06), 0 32px 64px -12px rgb(0 0 0 / 0.24)),
+);
+
+/// Zinc surfaces and outlines. Light: #fafafa canvas with white cards. Dark: near-black canvas
+/// with each container a small lightness step above it (depth from tone, not from shadow).
+@mixin neutral-surfaces() {
+  @include mat.theme-overrides((
+    background: light-dark(#fafafa, #09090b),
+    on-background: light-dark(#18181b, #fafafa),
+    surface: light-dark(#fafafa, #09090b),
+    surface-dim: light-dark(#ececef, #09090b),
+    surface-bright: light-dark(#ffffff, #1e1e22),
+    surface-container-lowest: light-dark(#ffffff, #0f0f12),
+    surface-container-low: light-dark(#f7f7f8, #131316),
+    surface-container: light-dark(#f2f2f4, #18181b),
+    surface-container-high: light-dark(#ececef, #1f1f23),
+    surface-container-highest: light-dark(#e4e4e7, #27272a),
+    surface-variant: light-dark(#f2f2f4, #27272a),
+    on-surface: light-dark(#18181b, #fafafa),
+    on-surface-variant: light-dark(#52525b, #a1a1aa),
+    outline: light-dark(#d4d4d8, #3f3f46),
+    outline-variant: light-dark(#e4e4e7, #26262b),
+    inverse-surface: light-dark(#18181b, #f4f4f5),
+    inverse-on-surface: light-dark(#fafafa, #18181b),
+    scrim: #000000,
+    shadow: #000000,
+    // Tonal surfaces are a light wash of the accent rather than a separate secondary hue.
+    secondary-container: color-mix(in oklab, var(--mat-sys-primary) 13%, var(--mat-sys-surface-container-lowest)),
+    on-secondary-container: color-mix(in oklab, var(--mat-sys-primary) 75%, var(--mat-sys-on-surface)),
+  ));
+  @include mat.theme-overrides($elevation);
+}
+
+/// Accent primaries (overrides M3 tone 40 with the vivid brand shade in light mode).
+@mixin accent-primary($name) {
+  $palette: map.get(palettes.$accents, $name, primary);
+  $light: map.get($accent-primaries, $name);
+  @if $name == graphite {
+    @include mat.theme-overrides((
+      primary: light-dark(#18181b, #fafafa),
+      on-primary: light-dark(#ffffff, #18181b),
+      primary-container: light-dark(#f4f4f5, #27272a),
+      on-primary-container: light-dark(#18181b, #fafafa),
+    ));
+  } @else {
+    @include mat.theme-overrides((
+      primary: light-dark($light, map.get($palette, 80)),
+      on-primary: light-dark(#ffffff, map.get($palette, 20)),
+      primary-container: light-dark(color-mix(in oklab, #{$light} 14%, #ffffff), map.get($palette, 30)),
+      on-primary-container: light-dark(map.get($palette, 30), map.get($palette, 90)),
+    ));
+  }
+}
+
+/// Full colour system for one accent (palette + neutral surfaces + vivid primary).
+@mixin accent-colors($name) {
+  $accent: map.get(palettes.$accents, $name);
+  @include mat.theme((
+    color: (
+      primary: map.get($accent, primary),
+      tertiary: map.get($accent, tertiary),
+      theme-type: color-scheme,
+    ),
+  ));
+  @include neutral-surfaces();
+  @include accent-primary($name);
+}
+
+/// Modern shape scale: 6 / 8 / 12 / 16 / 24px; `full` stays a pill for chips and switches.
+@mixin shapes() {
+  @include mat.theme-overrides((
+    corner-extra-small: 6px,
+    corner-extra-small-top: 6px 6px 0 0,
+    corner-small: 8px,
+    corner-medium: 12px,
+    corner-large: 16px,
+    corner-large-top: 16px 16px 0 0,
+    corner-large-start: 16px 0 0 16px,
+    corner-large-end: 0 16px 16px 0,
+    corner-extra-large: 24px,
+    corner-extra-large-top: 24px 24px 0 0,
+  ));
+}
+
+/// Tighter display/headline tracking and semibold titles (Geist-style hierarchy).
+@mixin type-refinements() {
+  @include mat.theme-overrides((
+    display-large-tracking: -0.035em,
+    display-medium-tracking: -0.03em,
+    display-small-tracking: -0.025em,
+    headline-large-tracking: -0.022em,
+    headline-medium-tracking: -0.02em,
+    headline-small-tracking: -0.015em,
+    title-large-tracking: -0.01em,
+    title-medium-tracking: -0.005em,
+    title-small-tracking: 0,
+    label-large-tracking: 0,
+    label-medium-tracking: 0.005em,
+    body-large-tracking: 0,
+    body-medium-tracking: 0,
+    body-small-tracking: 0,
+    display-large-weight: 600,
+    display-medium-weight: 600,
+    display-small-weight: 600,
+    headline-large-weight: 600,
+    headline-medium-weight: 600,
+    headline-small-weight: 600,
+    title-large-weight: 600,
+    title-medium-weight: 600,
+    title-small-weight: 600,
+  ));
+}
+
+/// Component tokens: compact, hairline, rounded-square controls.
+@mixin component-overrides() {
+  $control: 10px;
+  @include mat.button-overrides((
+    filled-container-shape: $control, outlined-container-shape: $control, tonal-container-shape: $control,
+    text-container-shape: $control, protected-container-shape: $control,
+    filled-container-height: 36px, outlined-container-height: 36px, tonal-container-height: 36px,
+    text-container-height: 36px, protected-container-height: 36px,
+    filled-horizontal-padding: 16px, outlined-horizontal-padding: 16px, tonal-horizontal-padding: 16px,
+    protected-horizontal-padding: 16px, text-horizontal-padding: 12px, text-with-icon-horizontal-padding: 12px,
+    filled-label-text-weight: 500, outlined-label-text-weight: 500, tonal-label-text-weight: 500,
+    text-label-text-weight: 500, protected-label-text-weight: 500,
+    filled-label-text-tracking: 0, outlined-label-text-tracking: 0, tonal-label-text-tracking: 0,
+    text-label-text-tracking: 0, protected-label-text-tracking: 0,
+    outlined-outline-color: var(--mat-sys-outline),
+    outlined-label-text-color: var(--mat-sys-on-surface),
+    protected-container-color: var(--mat-sys-surface-container-lowest),
+    protected-container-elevation-shadow: var(--mat-sys-level1),
+    protected-hover-container-elevation-shadow: var(--mat-sys-level2),
+  ));
+  @include mat.icon-button-overrides((
+    container-shape: $control,
+    icon-color: var(--mat-sys-on-surface-variant),
+  ));
+  @include mat.form-field-overrides((
+    container-height: 40px,
+    container-vertical-padding: 8px,
+    outlined-container-shape: 8px,
+    outlined-outline-color: var(--mat-sys-outline),
+    outlined-hover-outline-color: color-mix(in oklab, var(--mat-sys-on-surface) 45%, var(--mat-sys-outline)),
+    outlined-focus-outline-width: 2px,
+    outlined-label-text-color: var(--mat-sys-on-surface-variant),
+    outlined-input-text-placeholder-color: color-mix(in oklab, var(--mat-sys-on-surface-variant) 70%, transparent),
+    filled-container-shape: 8px,
+    filled-container-color: var(--mat-sys-surface-container),
+    filled-active-indicator-height: 0,
+    filled-focus-active-indicator-height: 0,
+    container-text-size: 14px,
+    outlined-label-text-size: 14px,
+  ));
+  @include mat.select-overrides((
+    panel-background-color: var(--mat-sys-surface-container-lowest),
+    container-elevation-shadow: var(--mat-sys-level3),
+    trigger-text-size: 14px,
+  ));
+  @include mat.autocomplete-overrides((
+    background-color: var(--mat-sys-surface-container-lowest),
+    container-elevation-shadow: var(--mat-sys-level3),
+    container-shape: 12px,
+  ));
+  @include mat.menu-overrides((
+    container-color: var(--mat-sys-surface-container-lowest),
+    container-shape: 12px,
+    container-elevation-shadow: var(--mat-sys-level3),
+    item-label-text-size: 14px,
+    item-label-text-weight: 500,
+    divider-color: var(--mat-sys-outline-variant),
+  ));
+  @include mat.dialog-overrides((
+    container-color: var(--mat-sys-surface-container-lowest),
+    container-shape: 20px,
+    container-elevation-shadow: var(--mat-sys-level5),
+  ));
+  @include mat.tooltip-overrides((
+    container-color: var(--mat-sys-inverse-surface),
+    supporting-text-color: var(--mat-sys-inverse-on-surface),
+    container-shape: 8px,
+    supporting-text-size: 12px,
+    supporting-text-weight: 500,
+  ));
+  @include mat.snack-bar-overrides((
+    container-color: var(--mat-sys-inverse-surface),
+    supporting-text-color: var(--mat-sys-inverse-on-surface),
+    container-shape: 12px,
+  ));
+  @include mat.card-overrides((
+    outlined-container-color: var(--mat-sys-surface-container-lowest),
+    outlined-outline-color: var(--mat-sys-outline-variant),
+    outlined-container-shape: 16px,
+    elevated-container-color: var(--mat-sys-surface-container-lowest),
+    elevated-container-shape: 16px,
+    elevated-container-elevation: var(--mat-sys-level2),
+    filled-container-color: var(--mat-sys-surface-container),
+    filled-container-shape: 16px,
+    title-text-weight: 600,
+    title-text-size: 16px,
+    title-text-line-height: 24px,
+    subtitle-text-weight: 400,
+    subtitle-text-size: 13px,
+    subtitle-text-color: var(--mat-sys-on-surface-variant),
+  ));
+  @include mat.expansion-overrides((
+    container-background-color: transparent,
+    container-elevation-shadow: none,
+    container-shape: 12px,
+    header-text-weight: 500,
+    header-text-size: 14px,
+    header-collapsed-state-height: 44px,
+    header-expanded-state-height: 48px,
+    actions-divider-color: var(--mat-sys-outline-variant),
+  ));
+  @include mat.tabs-overrides((
+    container-height: 44px,
+    label-text-weight: 500,
+    label-text-size: 14px,
+    label-text-tracking: 0,
+    active-indicator-height: 2px,
+    active-indicator-shape: 2px 2px 0 0,
+    divider-color: var(--mat-sys-outline-variant),
+    inactive-label-text-color: var(--mat-sys-on-surface-variant),
+    active-label-text-color: var(--mat-sys-on-surface),
+    active-focus-label-text-color: var(--mat-sys-on-surface),
+    active-hover-label-text-color: var(--mat-sys-on-surface),
+  ));
+  @include mat.button-toggle-overrides((
+    shape: $control,
+    height: 36px,
+    divider-color: var(--mat-sys-outline-variant),
+    selected-state-background-color: var(--mat-sys-secondary-container),
+    selected-state-text-color: var(--mat-sys-on-secondary-container),
+    label-text-weight: 500,
+    label-text-size: 14px,
+  ));
+  @include mat.chips-overrides((
+    container-shape-radius: 999px,
+    outline-color: var(--mat-sys-outline-variant),
+    label-text-weight: 500,
+    container-height: 30px,
+  ));
+  @include mat.list-overrides((
+    list-item-container-shape: $control,
+    active-indicator-shape: $control,
+    active-indicator-color: var(--mat-sys-secondary-container),
+    list-item-label-text-size: 14px,
+    list-item-label-text-weight: 500,
+    list-item-one-line-container-height: 40px,
+  ));
+  @include mat.table-overrides((
+    background-color: var(--mat-sys-surface-container-lowest),
+    header-container-height: 44px,
+    row-item-container-height: 48px,
+    header-headline-color: var(--mat-sys-on-surface-variant),
+    header-headline-weight: 500,
+    header-headline-size: 13px,
+    row-item-outline-color: var(--mat-sys-outline-variant),
+    row-item-label-text-size: 14px,
+  ));
+  @include mat.paginator-overrides((
+    container-background-color: transparent,
+  ));
+  @include mat.sidenav-overrides((
+    container-background-color: var(--mat-sys-surface),
+    container-divider-color: var(--mat-sys-outline-variant),
+    container-shape: 0,
+    content-background-color: var(--mat-sys-surface),
+  ));
+  @include mat.toolbar-overrides((
+    container-background-color: var(--mat-sys-surface),
+    standard-height: 56px,
+    title-text-weight: 600,
+  ));
+  @include mat.slide-toggle-overrides((
+    track-height: 22px,
+    track-width: 40px,
+    handle-shape: 999px,
+    selected-handle-size: 16px,
+    unselected-handle-size: 12px,
+    pressed-handle-size: 18px,
+    track-outline-color: var(--mat-sys-outline),
+  ));
+  @include mat.progress-bar-overrides((
+    track-shape: 999px,
+    active-indicator-height: 3px,
+    track-height: 3px,
+  ));
+}
+
+/// Emits the Material system tokens, light/dark switching, accents and the utility classes.
+/// @param {Map} $config Overrides for `$default-config` (`accent`, `font`, `brand-font`, `density`).
 @mixin app-theme($config: ()) {
   $config: map.merge($default-config, $config);
 
@@ -24,8 +342,8 @@ $default-config: (
     color-scheme: light dark;
     @include mat.theme((
       color: (
-        primary: map.get($config, primary),
-        tertiary: map.get($config, tertiary),
+        primary: map.get(palettes.$accents, map.get($config, accent), primary),
+        tertiary: map.get(palettes.$accents, map.get($config, accent), tertiary),
         theme-type: color-scheme,
       ),
       typography: (
@@ -34,11 +352,34 @@ $default-config: (
       ),
       density: map.get($config, density),
     ));
+    @include neutral-surfaces();
+    @include accent-primary(map.get($config, accent));
+    // Constant vivid accent for decorative gradients (brand mark, thumbnails, hero glow).
+    --ui-accent: #{map.get($accent-primaries, map.get($config, accent))};
+    @include shapes();
+    @include type-refinements();
+    @include component-overrides();
+  }
+
+  // Runtime accent switching (ThemeService sets one of these classes on <html>).
+  @each $name, $accent in palettes.$accents {
+    html.ui-accent-#{$name} { @include accent-colors($name); --ui-accent: #{map.get($accent-primaries, $name)}; }
+    .ui-accent-swatch-#{$name} { background-color: map.get($accent-primaries, $name); }
   }
 
   // The theme switcher sets one of these on <html>; without either, the OS preference wins.
   html.light-theme { color-scheme: light; }
   html.dark-theme { color-scheme: dark; }
+
+  body {
+    background: var(--mat-sys-surface);
+    color: var(--mat-sys-on-surface);
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection { background: color-mix(in oklab, var(--mat-sys-primary) 24%, transparent); }
 
   @include mat.system-classes();
 }
