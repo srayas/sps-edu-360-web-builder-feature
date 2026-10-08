@@ -1,0 +1,44 @@
+// spsEdu360 application theme.
+//
+// One Material 3 theme for every Angular app in the workspace. Components never ship their own
+// stylesheets: they compose Angular Material components, Material's system utility classes
+// (`mat-bg-*`, `mat-text-*`, `mat-font-*`, `mat-corner-*`, `mat-shadow-*`) and the layout classes
+// in `_layout.scss`. Brand changes happen here, through Material's token APIs only.
+@use 'sass:map';
+@use '@angular/material' as mat;
+
+$default-config: (
+  primary: mat.$azure-palette,
+  tertiary: mat.$violet-palette,
+  font: ('Public Sans', Roboto, sans-serif),
+  brand-font: ('Public Sans', Roboto, sans-serif),
+  density: 0,
+);
+
+/// Emits the Material system tokens, light/dark switching and the system utility classes.
+/// @param {Map} $config Overrides for `$default-config`.
+@mixin app-theme($config: ()) {
+  $config: map.merge($default-config, $config);
+
+  html {
+    color-scheme: light dark;
+    @include mat.theme((
+      color: (
+        primary: map.get($config, primary),
+        tertiary: map.get($config, tertiary),
+        theme-type: color-scheme,
+      ),
+      typography: (
+        plain-family: map.get($config, font),
+        brand-family: map.get($config, brand-font),
+      ),
+      density: map.get($config, density),
+    ));
+  }
+
+  // The theme switcher sets one of these on <html>; without either, the OS preference wins.
+  html.light-theme { color-scheme: light; }
+  html.dark-theme { color-scheme: dark; }
+
+  @include mat.system-classes();
+}

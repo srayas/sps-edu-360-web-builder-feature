@@ -1,0 +1,300 @@
+// Theme classes and block presets for sites built in the studio.
+//
+// A `.wb-site` root carries one class per theme setting (palette, fonts, density, corners, color
+// scheme). Each class only re-declares Material system tokens, so every Angular Material
+// component and every `mat-*` utility inside the site picks up the project theme automatically.
+@use 'sass:map';
+@use '@angular/material' as mat;
+
+$palettes: (
+  'azure': mat.$azure-palette, 'blue': mat.$blue-palette, 'cyan': mat.$cyan-palette, 'spring-green': mat.$spring-green-palette,
+  'green': mat.$green-palette, 'chartreuse': mat.$chartreuse-palette, 'yellow': mat.$yellow-palette, 'orange': mat.$orange-palette,
+  'red': mat.$red-palette, 'rose': mat.$rose-palette, 'magenta': mat.$magenta-palette, 'violet': mat.$violet-palette,
+);
+
+$fonts: (
+  public-sans: ('Public Sans', sans-serif), geist: ('Geist', sans-serif), inter: ('Inter', sans-serif), roboto: ('Roboto', sans-serif),
+  poppins: ('Poppins', sans-serif), lato: ('Lato', sans-serif), montserrat: ('Montserrat', sans-serif),
+  merriweather: ('Merriweather', serif), playfair-display: ('Playfair Display', serif),
+);
+
+$body-levels: (body-large, body-medium, body-small, label-large, label-medium, label-small, title-medium, title-small);
+$heading-levels: (display-large, display-medium, display-small, headline-large, headline-medium, headline-small, title-large);
+
+$surfaces: (surface, surface-container-lowest, surface-container-low, surface-container, surface-container-high, surface-container-highest, primary-container, secondary-container, primary, inverse-surface, error-container);
+$on-surface: (
+  surface: on-surface, surface-container-lowest: on-surface, surface-container-low: on-surface, surface-container: on-surface,
+  surface-container-high: on-surface, surface-container-highest: on-surface, primary-container: on-primary-container,
+  secondary-container: on-secondary-container, primary: on-primary, inverse-surface: inverse-on-surface, error-container: on-error-container,
+);
+
+$token-roles: (
+  primary, on-primary, primary-container, on-primary-container, secondary, secondary-container, on-secondary-container,
+  tertiary, tertiary-container, on-tertiary-container, error, error-container, surface, surface-container-low, surface-container,
+  surface-container-high, on-surface, on-surface-variant, outline, outline-variant, inverse-surface,
+);
+
+@mixin tertiary-tokens($p) {
+  --mat-sys-tertiary: light-dark(#{map.get($p, 40)}, #{map.get($p, 80)});
+  --mat-sys-on-tertiary: light-dark(#{map.get($p, 100)}, #{map.get($p, 20)});
+  --mat-sys-tertiary-container: light-dark(#{map.get($p, 90)}, #{map.get($p, 30)});
+  --mat-sys-on-tertiary-container: light-dark(#{map.get($p, 30)}, #{map.get($p, 90)});
+  --mat-sys-tertiary-fixed: #{map.get($p, 90)};
+  --mat-sys-tertiary-fixed-dim: #{map.get($p, 80)};
+  --mat-sys-on-tertiary-fixed: #{map.get($p, 10)};
+  --mat-sys-on-tertiary-fixed-variant: #{map.get($p, 30)};
+}
+
+@mixin corners($xs, $sm, $md, $lg, $xl) {
+  --mat-sys-corner-extra-small: #{$xs};
+  --mat-sys-corner-extra-small-top: #{$xs} #{$xs} 0 0;
+  --mat-sys-corner-small: #{$sm};
+  --mat-sys-corner-medium: #{$md};
+  --mat-sys-corner-large: #{$lg};
+  --mat-sys-corner-large-top: #{$lg} #{$lg} 0 0;
+  --mat-sys-corner-large-start: #{$lg} 0 0 #{$lg};
+  --mat-sys-corner-large-end: 0 #{$lg} #{$lg} 0;
+  --mat-sys-corner-extra-large: #{$xl};
+  --mat-sys-corner-extra-large-top: #{$xl} #{$xl} 0 0;
+}
+
+@mixin site-classes() {
+  .wb-contents { display: contents; }
+
+  // ---------------------------------------------------------------------------------------
+  // Theme settings
+  // ---------------------------------------------------------------------------------------
+  @each $name, $palette in $palettes {
+    .wb-primary-#{$name} {
+      @include mat.theme((color: (primary: $palette, tertiary: $palette, theme-type: color-scheme)));
+    }
+  }
+  // Declared after the primary classes so the accent wins when both are on one element.
+  @each $name, $palette in $palettes {
+    .wb-tertiary-#{$name} { @include tertiary-tokens($palette); }
+    .wb-swatch-#{$name} { background-color: map.get($palette, 40); }
+  }
+
+  @each $slug, $family in $fonts {
+    .wb-body-#{$slug} {
+      @each $level in $body-levels { --mat-sys-#{$level}-font: #{$family}; }
+    }
+    .wb-heading-#{$slug} {
+      @each $level in $heading-levels { --mat-sys-#{$level}-font: #{$family}; }
+    }
+    .wb-font-sample-#{$slug} { font-family: $family; }
+  }
+
+  @for $level from 0 through 4 {
+    .wb-density-#{$level} { @include mat.theme((density: -$level)); }
+  }
+
+  .wb-radius-none { @include corners(0, 0, 0, 0, 0); }
+  .wb-radius-small { @include corners(2px, 4px, 6px, 8px, 12px); }
+  .wb-radius-medium { @include corners(4px, 8px, 12px, 16px, 28px); }
+  .wb-radius-large { @include corners(8px, 12px, 20px, 28px, 36px); }
+  .wb-radius-round { @include corners(12px, 16px, 28px, 36px, 48px); }
+
+  .wb-scheme-light { color-scheme: light; }
+  .wb-scheme-dark { color-scheme: dark; }
+  .wb-scheme-system { color-scheme: light dark; }
+
+  .wb-bg-tertiary-container { background-color: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container); }
+  @each $role in $token-roles {
+    .wb-token-#{$role} { background: var(--mat-sys-#{$role}); }
+  }
+
+  // Toolbars take their surface through the toolbar token so Material's own styles agree.
+  @each $surface in $surfaces {
+    .mat-toolbar.mat-bg-#{$surface} {
+      --mat-toolbar-container-background-color: var(--mat-sys-#{$surface});
+      --mat-toolbar-container-text-color: var(--mat-sys-#{map.get($on-surface, $surface)});
+    }
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Site root
+  // ---------------------------------------------------------------------------------------
+  .wb-site {
+    container: wb-site / inline-size;
+    min-height: 100%;
+    background: var(--mat-sys-surface);
+    color: var(--mat-sys-on-surface);
+    font: var(--mat-sys-body-medium);
+    h1, h2, h3, h4, h5, h6, p, figure, blockquote { margin: 0; }
+  }
+  .wb-published { min-height: 100dvh; }
+  .wb-page { display: block; }
+  .ui-max-none { max-width: none; width: 100%; }
+
+  // Responsive columns (container queries so the studio viewport switcher behaves like a device)
+  // Single-class selectors so the tablet/mobile rules below can override them.
+  @for $i from 1 through 6 { .wb-cols-#{$i} { grid-template-columns: repeat(#{$i}, minmax(0, 1fr)); } }
+  .wb-cols-auto { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  @container wb-site (max-width: 1024px) {
+    @for $i from 1 through 6 { .wb-cols-t-#{$i} { grid-template-columns: repeat(#{$i}, minmax(0, 1fr)); } }
+    .wb-cols-t-auto { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  }
+  @container wb-site (max-width: 600px) {
+    @for $i from 1 through 6 { .wb-cols-m-#{$i} { grid-template-columns: repeat(#{$i}, minmax(0, 1fr)); } }
+    .wb-cols-m-auto { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+    .wb-stack-mobile { flex-direction: column; align-items: stretch; }
+    .wb-section { padding-inline: var(--ui-space-4); }
+    .wb-site .wb-section-inner { padding-inline: 0; }
+    // Scale the largest type roles down on small screens (same tokens, smaller sizes).
+    .wb-page {
+      --mat-sys-display-large: var(--mat-sys-display-large-weight) 2.5rem / 3rem var(--mat-sys-display-large-font);
+      --mat-sys-display-medium: var(--mat-sys-display-medium-weight) 2.25rem / 2.75rem var(--mat-sys-display-medium-font);
+      --mat-sys-display-small: var(--mat-sys-display-small-weight) 2rem / 2.5rem var(--mat-sys-display-small-font);
+      --mat-sys-headline-large: var(--mat-sys-headline-large-weight) 1.75rem / 2.25rem var(--mat-sys-headline-large-font);
+    }
+  }
+
+  // Hide-on-viewport rules; while editing, hidden blocks are dimmed instead so they stay selectable.
+  @container wb-site (min-width: 1025px) {
+    .wb-mode-live .wb-hide-desktop, .wb-mode-preview .wb-hide-desktop { display: none !important; }
+    .wb-mode-edit .wb-hide-desktop { opacity: 0.4; }
+  }
+  @container wb-site (min-width: 601px) and (max-width: 1024px) {
+    .wb-mode-live .wb-hide-tablet, .wb-mode-preview .wb-hide-tablet { display: none !important; }
+    .wb-mode-edit .wb-hide-tablet { opacity: 0.4; }
+  }
+  @container wb-site (max-width: 600px) {
+    .wb-mode-live .wb-hide-mobile, .wb-mode-preview .wb-hide-mobile { display: none !important; }
+    .wb-mode-edit .wb-hide-mobile { opacity: 0.4; }
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Block presets
+  // ---------------------------------------------------------------------------------------
+  .wb-section { position: relative; display: block; padding-inline: var(--ui-space-5); background-size: cover; background-position: center; }
+  .wb-section-inner { position: relative; z-index: 1; }
+  .wb-section-scrim { color: #fff; }
+  .wb-section-scrim::before { content: ''; position: absolute; inset: 0; background: rgb(0 0 0 / 0.45); border-radius: inherit; }
+
+  .wb-list { margin: 0; padding-inline-start: 1.5em; display: flex; flex-direction: column; gap: var(--ui-space-1); }
+  .wb-figure { display: flex; flex-direction: column; gap: var(--ui-space-2); }
+  .wb-figure img { border-radius: inherit; }
+  .wb-image { display: block; width: 100%; height: auto; }
+  .wb-media, .wb-embed { display: block; width: 100%; border: 0; }
+  .wb-ratio-16-9 { aspect-ratio: 16 / 9; }
+  .wb-ratio-4-3 { aspect-ratio: 4 / 3; }
+  .wb-ratio-1-1 { aspect-ratio: 1; }
+  .wb-ratio-21-9 { aspect-ratio: 21 / 9; }
+  .wb-fit-cover { object-fit: cover; }
+  .wb-fit-contain { object-fit: contain; }
+  .wb-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--ui-space-2); min-height: 160px; border-radius: var(--mat-sys-corner-medium); }
+  .wb-placeholder-short { min-height: 64px; flex-direction: row; }
+  .wb-icon-sm { font-size: 18px; width: 18px; height: 18px; }
+  .wb-icon-md { font-size: 24px; width: 24px; height: 24px; }
+  .wb-icon-lg { font-size: 40px; width: 40px; height: 40px; }
+  .wb-icon-xl { font-size: 64px; width: 64px; height: 64px; }
+  .wb-avatar { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; object-fit: cover; }
+  .wb-avatar-sm { width: 32px; height: 32px; }
+  .wb-avatar-md { width: 48px; height: 48px; }
+  .wb-avatar-lg { width: 72px; height: 72px; }
+  .wb-quote { display: flex; flex-direction: column; gap: var(--ui-space-2); padding-inline-start: var(--ui-space-4); border-inline-start: 4px solid var(--mat-sys-primary); }
+  .wb-code { margin: 0; overflow: auto; font: 13px / 1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  @each $key in (0, 1, 2, 3, 4, 5, 6, 7, 8) { .wb-spacer-#{$key} { height: var(--ui-space-#{$key}); } }
+  .wb-badge { display: inline-flex; align-items: center; width: fit-content; padding: 2px 10px; }
+  .wb-clickable { cursor: pointer; }
+  .wb-card-media { aspect-ratio: 16 / 9; object-fit: cover; }
+  .wb-card-avatar { display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+  .wb-stat-icon { padding: 8px; box-sizing: content-box; }
+  .wb-sticky { position: sticky; top: 0; z-index: 3; }
+  .mat-toolbar.wb-type-toolbar { gap: var(--ui-space-3); }
+  .wb-field.mat-mdc-form-field { width: 100%; }
+  .wb-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .wb-slider.mat-mdc-slider { width: calc(100% - 16px); }
+  .wb-calendar { width: 100%; max-width: 360px; }
+  .wb-breadcrumbs { list-style: none; padding: 0; }
+  .wb-table-scroll { overflow-x: auto; }
+  .wb-table-search { width: 100%; max-width: 320px; }
+  .wb-chart-svg { display: block; width: 100%; height: auto; }
+  .wb-chart-bar { fill: var(--mat-sys-primary); }
+  .wb-chart-line { fill: none; stroke: var(--mat-sys-primary); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+  .wb-chart-area { fill: color-mix(in srgb, var(--mat-sys-primary) 14%, transparent); }
+  .wb-chart-dot { fill: var(--mat-sys-primary); stroke: var(--mat-sys-surface); stroke-width: 2; }
+  .wb-chart-grid { stroke: var(--mat-sys-outline-variant); stroke-dasharray: 4 4; }
+  .wb-chart-axis { fill: var(--mat-sys-on-surface-variant); font: var(--mat-sys-label-small); }
+  .wb-site .mat-mdc-button-base.ui-fill { width: 100%; }
+
+  .wb-alert-info { background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); }
+  .wb-alert-success { background: light-dark(#e3f4e5, #1d3622); color: light-dark(#1b4d23, #b6e6bd); }
+  .wb-alert-warning { background: light-dark(#fff1d6, #3d2e0a); color: light-dark(#5c3d00, #ffd98c); }
+  .wb-alert-error { background: var(--mat-sys-error-container); color: var(--mat-sys-on-error-container); }
+
+  // Loading & motion ---------------------------------------------------------------------------
+  // Every block fades/lifts in when it is inserted (page change, rule shows it, data arrives).
+  .wb-site .wb-block {
+    transition: opacity var(--ui-duration-medium) var(--ui-ease-decelerate), translate var(--ui-duration-medium) var(--ui-ease-decelerate);
+    @starting-style { opacity: 0; translate: 0 6px; }
+  }
+  .wb-figure-loading { position: relative; }
+  .wb-figure-loading::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit;
+    background: var(--mat-sys-surface-container-high);
+    background-image: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--mat-sys-on-surface) 6%, transparent) 50%, transparent 80%);
+    background-size: 220% 100%; animation: ui-shimmer 1.4s var(--ui-ease-standard) infinite;
+  }
+  .wb-image { opacity: 0; transition: opacity var(--ui-duration-long) var(--ui-ease-standard); }
+  .wb-image-loaded { opacity: 1; }
+  .wb-image:not([src]) { min-height: 120px; }
+  .wb-refresh-bar { height: 2px; border-radius: 2px; }
+  .wb-defer-placeholder { display: block; min-height: 240px; padding-inline: var(--ui-space-5); }
+  .wb-logic-badge {
+    position: absolute; top: 0; right: 0; z-index: 6; padding: 2px 8px; border-radius: 0 0 0 8px;
+    background: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container);
+  }
+  .wb-mode-edit .wb-frame:has(> wb-block > .wb-logic-badge) > wb-block > :not(.wb-logic-badge) { opacity: 0.45; }
+  .wb-site [readonly].mat-mdc-input-element { cursor: default; }
+
+  // App shell around published pages
+  .wb-shell { min-height: 100%; }
+  .wb-shell-top { display: flex; flex-direction: column; }
+  .wb-shell-side { display: grid; grid-template-columns: 260px minmax(0, 1fr); }
+  .wb-shell-header { display: flex; align-items: center; gap: var(--ui-space-4); padding: var(--ui-space-2) var(--ui-space-4); border-bottom: 1px solid var(--mat-sys-outline-variant); position: sticky; top: 0; z-index: 4; }
+  .wb-shell-side .wb-shell-header { flex-direction: column; align-items: stretch; border-bottom: 0; border-inline-end: 1px solid var(--mat-sys-outline-variant); align-self: start; min-height: 100%; padding: var(--ui-space-4) var(--ui-space-2); }
+  .wb-shell-brand { min-width: 0; min-height: 48px; padding-inline: var(--ui-space-2); text-decoration: none; }
+  .wb-shell-links { flex: 1 1 auto; justify-content: flex-end; flex-wrap: wrap; }
+  .wb-shell-header .wb-shell-menu { display: none; margin-inline-start: auto; }
+  .wb-shell-footer { padding: var(--ui-space-4) var(--ui-space-5); }
+  @container wb-site (max-width: 720px) {
+    .wb-shell-links { display: none; }
+    .wb-shell-header .wb-shell-menu { display: inline-flex; }
+    .wb-shell-side { grid-template-columns: minmax(0, 1fr); }
+    .wb-shell-side .wb-shell-header { min-height: 0; border-inline-end: 0; border-bottom: 1px solid var(--mat-sys-outline-variant); }
+    .wb-shell-side .wb-shell-nav { display: flex; overflow-x: auto; padding: 0; }
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // Static HTML export (native elements styled with the same tokens)
+  // ---------------------------------------------------------------------------------------
+  .wb-export {
+    .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-size: 24px; line-height: 1; }
+    .wb-export-card { border-radius: var(--mat-sys-corner-medium); overflow: hidden; }
+    .wb-card-outlined { border: 1px solid var(--mat-sys-outline-variant); }
+    .wb-card-filled { background: var(--mat-sys-surface-container-highest); }
+    .wb-card-raised { background: var(--mat-sys-surface-container-low); box-shadow: var(--mat-sys-level1); }
+    .wb-export-toolbar { min-height: 64px; background: var(--mat-sys-surface-container); }
+    .wb-export-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 24px; border-radius: var(--mat-sys-corner-full); border: 1px solid transparent; font: var(--mat-sys-label-large); text-decoration: none; cursor: pointer; width: fit-content; }
+    .wb-button-filled, .wb-button-fab, .wb-button-extended-fab { background: var(--mat-sys-primary); color: var(--mat-sys-on-primary); }
+    .wb-button-tonal, .wb-button-mini-fab { background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); }
+    .wb-button-outlined { border-color: var(--mat-sys-outline); color: var(--mat-sys-primary); background: transparent; }
+    .wb-button-elevated { background: var(--mat-sys-surface-container-low); color: var(--mat-sys-primary); box-shadow: var(--mat-sys-level1); }
+    .wb-button-text, .wb-button-icon { background: transparent; color: var(--mat-sys-primary); }
+    .wb-export-field { display: flex; flex-direction: column; gap: 6px; font: var(--mat-sys-body-medium); }
+    .wb-export-field input:not([type=checkbox]):not([type=radio]):not([type=range]), .wb-export-field select, .wb-export-field textarea {
+      padding: 12px 14px; border: 1px solid var(--mat-sys-outline); border-radius: var(--mat-sys-corner-extra-small); background: transparent; color: inherit; font: inherit;
+    }
+    .wb-export-fieldset { border: 0; padding: 0; margin: 0; }
+    .wb-export-details { border-bottom: 1px solid var(--mat-sys-outline-variant); padding: var(--ui-space-3) 0; }
+    .wb-export-details > summary { cursor: pointer; }
+    .wb-export-chip { padding: 4px 12px; border: 1px solid var(--mat-sys-outline-variant); border-radius: var(--mat-sys-corner-small); }
+    .wb-export-table { width: 100%; border-collapse: collapse; }
+    .wb-export-table th, .wb-export-table td { text-align: start; padding: 12px 16px; border-bottom: 1px solid var(--mat-sys-outline-variant); }
+    .wb-export-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+    .wb-export-divider { border: 0; border-top: 1px solid var(--mat-sys-outline-variant); width: 100%; }
+    .wb-alert { display: flex; }
+  }
+}

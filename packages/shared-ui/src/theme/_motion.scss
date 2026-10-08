@@ -1,0 +1,97 @@
+// Motion and loading system: skeletons, enter transitions and view transitions.
+//
+// Motion follows Material 3 Expressive's spring-like "emphasized" easing for things entering and
+// a quick standard easing for state changes. Everything is disabled for people who ask for
+// reduced motion.
+
+$emphasized: cubic-bezier(0.2, 0, 0, 1);
+$emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+$standard: cubic-bezier(0.2, 0, 0, 1);
+
+@mixin motion-classes() {
+  :root {
+    --ui-ease-emphasized: #{$emphasized};
+    --ui-ease-decelerate: #{$emphasized-decelerate};
+    --ui-ease-standard: #{$standard};
+    --ui-duration-short: 150ms;
+    --ui-duration-medium: 250ms;
+    --ui-duration-long: 400ms;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Skeletons
+  // ---------------------------------------------------------------------------------------------
+  .ui-skeleton-host { display: block; min-width: 0; }
+  .ui-sk {
+    display: block;
+    border-radius: var(--mat-sys-corner-small);
+    background-color: var(--mat-sys-surface-container-high);
+    background-image: linear-gradient(
+      100deg,
+      transparent 20%,
+      color-mix(in srgb, var(--mat-sys-surface-container-highest) 85%, var(--mat-sys-on-surface) 6%) 50%,
+      transparent 80%
+    );
+    background-size: 220% 100%;
+    background-repeat: no-repeat;
+    animation: ui-shimmer 1.4s var(--ui-ease-standard) infinite;
+  }
+  // Route progress (shown only for slow navigations) and the pre-bootstrap splash in index.html.
+  .ui-route-progress { position: fixed; inset: 0 0 auto 0; z-index: 1000; }
+  .ui-boot { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 24px; min-height: 100dvh; padding: 16px; background: var(--mat-sys-surface); }
+  .ui-boot-side { display: flex; flex-direction: column; gap: 12px; }
+  .ui-boot-main { display: flex; flex-direction: column; gap: 16px; padding-top: 56px; }
+  .ui-boot-hero { height: 220px; border-radius: var(--mat-sys-corner-extra-large); }
+  .ui-boot-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .ui-boot-card { height: 160px; border-radius: var(--mat-sys-corner-extra-large); }
+  @media (max-width: 839.98px) { .ui-boot { grid-template-columns: minmax(0, 1fr); } .ui-boot-side { display: none; } .ui-boot-cards { grid-template-columns: minmax(0, 1fr); } }
+  .ui-sk-soft { background-color: var(--mat-sys-surface-container); }
+  .ui-sk-line { height: 0.75rem; }
+  .ui-sk-label { height: 0.625rem; }
+  .ui-sk-title { height: 1.5rem; border-radius: var(--mat-sys-corner-medium); }
+  .ui-sk-field { height: 3.25rem; border-radius: var(--mat-sys-corner-extra-small); }
+  .ui-sk-button { width: 8rem; height: 2.5rem; border-radius: var(--mat-sys-corner-full); }
+  .ui-sk-circle { width: 2.75rem; height: 2.75rem; border-radius: 50%; flex-shrink: 0; }
+  .ui-sk-circle.ui-sk-sm { width: 2rem; height: 2rem; }
+  .ui-sk-media { aspect-ratio: 16 / 9; width: 100%; border-radius: var(--mat-sys-corner-medium); }
+  .ui-sk-card { border: 1px solid var(--mat-sys-outline-variant); border-radius: var(--mat-sys-corner-medium); background: var(--mat-sys-surface); }
+  .ui-sk-bars { display: flex; align-items: flex-end; gap: 10px; height: 180px; }
+  .ui-sk-bar { flex: 1 1 0; border-radius: 6px 6px 2px 2px; }
+  @each $width in (25, 40, 50, 60, 75, 100) { .ui-sk-w-#{$width} { width: $width * 1%; } }
+  @each $height in (40, 55, 60, 70, 75, 85, 95) { .ui-sk-h-#{$height} { height: $height * 1%; } }
+  @container (max-width: 600px) { .ui-sk-grid { grid-template-columns: minmax(0, 1fr); } }
+
+  @keyframes ui-shimmer {
+    from { background-position: 120% 0; }
+    to { background-position: -120% 0; }
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Enter transitions (CSS @starting-style: no JavaScript, no layout thrash)
+  // ---------------------------------------------------------------------------------------------
+  .ui-enter, .ui-fade-in {
+    transition:
+      opacity var(--ui-duration-medium) var(--ui-ease-decelerate),
+      translate var(--ui-duration-medium) var(--ui-ease-decelerate);
+    @starting-style { opacity: 0; translate: 0 6px; }
+  }
+  .ui-fade-in { @starting-style { translate: none; } }
+  .ui-pressable { transition: transform var(--ui-duration-short) var(--ui-ease-standard); }
+  .ui-pressable:active { transform: scale(0.98); }
+
+  // Router view transitions: a quick cross-fade with a slight lift.
+  ::view-transition-old(root) { animation: ui-vt-out 160ms var(--ui-ease-standard) both; }
+  ::view-transition-new(root) { animation: ui-vt-in 260ms var(--ui-ease-decelerate) both; }
+  @keyframes ui-vt-out { to { opacity: 0; } }
+  @keyframes ui-vt-in { from { opacity: 0; translate: 0 8px; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after, ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      scroll-behavior: auto !important;
+    }
+    .ui-sk { animation: none; }
+  }
+}

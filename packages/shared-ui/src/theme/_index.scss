@@ -1,0 +1,19 @@
+// Public Sass API of @spsedu360/shared-ui.
+//
+//   @use '@spsedu360/shared-ui/theme' as ui;
+//   @include ui.all((primary: mat.$azure-palette));
+@forward 'theme' show app-theme, $default-config;
+@forward 'layout' show layout-classes, $space, $widths;
+@forward 'shell' show shell-classes;
+@forward 'motion' show motion-classes;
+@use 'theme';
+@use 'layout';
+@use 'shell';
+@use 'motion';
+
+@mixin all($config: ()) {
+  @include theme.app-theme($config);
+  @include layout.layout-classes();
+  @include shell.shell-classes();
+  @include motion.motion-classes();
+}

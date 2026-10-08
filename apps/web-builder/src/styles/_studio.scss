@@ -1,0 +1,173 @@
+// Studio chrome: panels, canvas, selection frames and drag-and-drop affordances.
+@use '@angular/material' as mat;
+
+@mixin studio-classes() {
+  .wb-studio {
+    height: 100dvh;
+    background: var(--mat-sys-surface-container);
+    @include mat.theme((density: -2));
+  }
+  .wb-studio-bar.mat-toolbar {
+    flex: 0 0 auto; overflow-x: auto; overflow-y: hidden;
+    --mat-toolbar-container-background-color: var(--mat-sys-surface-container);
+    border-bottom: 0;
+  }
+  // Floating, rounded panels on a tonal backdrop (M3 expressive containment).
+  .wb-studio-body.mat-drawer-container { background: transparent; }
+  .wb-panel.mat-drawer {
+    background: var(--mat-sys-surface-container-lowest);
+    border: 0 !important;
+    border-radius: var(--mat-sys-corner-extra-large);
+    margin: 0 8px 8px;
+    box-shadow: var(--mat-sys-level1);
+    height: calc(100% - 8px);
+  }
+  .wb-panel.mat-drawer-over { margin: 0; border-radius: 0; height: 100%; }
+  .wb-panel .mat-mdc-tab-header { padding-inline: 4px; }
+  .wb-project-name { width: clamp(120px, 18vw, 240px); }
+  .wb-studio-body { flex: 1 1 auto; min-height: 0; }
+  .wb-panel-left { width: 304px; }
+  .wb-panel-right { width: 340px; }
+  .wb-panel-tabs { height: 100%; min-height: 0; }
+  .wb-icon-tabs { --mat-tab-container-height: 56px; }
+  .wb-icon-tabs .mat-mdc-tab { min-width: 0; padding-inline: 4px; }
+  .wb-inspector .wb-panel-tabs { flex: 1 1 auto; height: auto; }
+  .wb-dense-field .mat-mdc-text-field-wrapper { padding-inline: 12px; }
+  .wb-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; }
+  .wb-note code, .wb-inspector code { font-size: 12px; }
+  .wb-scope-toggle .mat-button-toggle { flex: 1 1 0; }
+  .wb-scope-toggle .mat-button-toggle .mat-icon { font-size: 18px; width: 18px; height: 18px; vertical-align: middle; }
+  .wb-crumb.mat-mdc-button { min-width: 0; height: 24px; padding-inline: 6px; font: var(--mat-sys-label-small); }
+  .wb-icon-button-sm { --mat-icon-button-state-layer-size: 32px; --mat-icon-button-icon-size: 18px; padding: 4px; }
+  .wb-icon-button-sm .mat-icon { font-size: 18px; width: 18px; height: 18px; }
+  .wb-dot { display: inline-block; flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; margin-inline-start: 6px; }
+  .wb-color-input { flex: 0 0 48px; width: 48px; height: 48px; padding: 2px; border: 1px solid var(--mat-sys-outline-variant); border-radius: var(--mat-sys-corner-extra-small); background: none; cursor: pointer; }
+  .wb-swatch-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-inline-end: 8px; vertical-align: middle; border: 1px solid var(--mat-sys-outline-variant); }
+
+  // Library
+  .wb-palette { --mat-expansion-container-background-color: transparent; }
+  .wb-palette .mat-expansion-panel-header { padding-inline: 12px; }
+  .wb-palette .mat-expansion-panel-body { padding: 0 12px 12px; }
+  .wb-tile-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .wb-tile.mat-mdc-button {
+    height: 80px; min-width: 0; padding: 6px; border-radius: var(--mat-sys-corner-large);
+    --mat-button-text-label-text-color: var(--mat-sys-on-surface);
+    background: var(--mat-sys-surface-container-low);
+    transition: background-color var(--ui-duration-short) var(--ui-ease-standard), transform var(--ui-duration-short) var(--ui-ease-standard);
+  }
+  .wb-tile.mat-mdc-button:active { transform: scale(0.96); }
+  .wb-tile .mat-icon { padding: 6px; box-sizing: content-box; border-radius: var(--mat-sys-corner-medium); background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container) !important; }
+  .wb-tile.mat-mdc-button .mdc-button__label { white-space: normal; text-align: center; overflow-wrap: anywhere; }
+  .wb-tile.mat-mdc-button:hover { background: var(--mat-sys-secondary-container); }
+  .wb-tile .mat-icon { margin: 0; }
+  .wb-template.mat-mdc-button { width: 100%; height: auto; min-height: 56px; justify-content: flex-start; padding: 8px 12px; text-align: start; border-radius: var(--mat-sys-corner-medium); --mat-button-text-label-text-color: var(--mat-sys-on-surface); }
+  .wb-template.mat-mdc-button:hover { background: var(--mat-sys-surface-container-high); }
+  .wb-template .mdc-button__label { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .wb-template .mat-icon { color: var(--mat-sys-tertiary); }
+  .wb-tile-placeholder { height: 72px; border-radius: var(--mat-sys-corner-medium); background: var(--mat-sys-surface-container-high); }
+  .wb-drag-preview { display: flex; align-items: center; gap: 8px; padding: 8px 14px; font: var(--mat-sys-label-large); pointer-events: none; }
+
+  // Layers
+  .wb-layer { width: 100%; min-height: 36px; padding: 6px 8px; border: 0; border-radius: var(--mat-sys-corner-small); background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+  .wb-layer:hover { background: var(--mat-sys-surface-container-high); }
+  .wb-layer:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: -2px; }
+  .wb-layer-active, .wb-layer-active:hover { background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); }
+  @for $depth from 0 through 10 { .wb-indent-#{$depth} { padding-inline-start: calc(8px + #{$depth * 14}px); } }
+
+  // Theme panel
+  .wb-swatches { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  .wb-swatch { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; padding: 0; border: 2px solid transparent; border-radius: 50%; color: #fff; cursor: pointer; }
+  .wb-swatch:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
+  .wb-swatch-active { border-color: var(--mat-sys-on-surface); box-shadow: inset 0 0 0 2px var(--mat-sys-surface); }
+
+  // Canvas
+  .wb-canvas-area {
+    padding: 4px 24px 48px;
+    background-color: transparent;
+    background-image: radial-gradient(var(--mat-sys-outline-variant) 0.7px, transparent 0.7px);
+    background-size: 14px 14px;
+  }
+  .wb-canvas-caption { max-width: 1280px; min-height: 32px; margin: 0 auto 8px; }
+  .wb-canvas {
+    max-width: 1280px; min-height: calc(100% - 48px); margin: 0 auto; overflow: clip;
+    border-radius: var(--mat-sys-corner-large);
+    box-shadow: var(--mat-sys-level2), 0 0 0 1px var(--mat-sys-outline-variant);
+    transition: max-width var(--ui-duration-long) var(--ui-ease-emphasized);
+  }
+  .wb-viewport-mobile { border-radius: 28px; box-shadow: var(--mat-sys-level3), 0 0 0 8px var(--mat-sys-surface-container-highest); margin-top: 8px; }
+  .wb-canvas > .wb-contents > .wb-site, .wb-canvas .wb-site { min-height: 75vh; }
+  .wb-viewport-tablet { max-width: 820px; }
+  .wb-viewport-mobile { max-width: 390px; }
+  .wb-preview-chip { font: var(--mat-sys-label-medium); }
+
+  // Selection frames (edit mode only)
+  .wb-mode-edit {
+    .wb-page-root { min-height: 70vh; }
+    .wb-frame { position: relative; min-width: 0; outline: 1px solid transparent; outline-offset: -1px; border-radius: 6px; transition: outline-color var(--ui-duration-short) var(--ui-ease-standard); }
+    .wb-frame:hover { outline-color: color-mix(in srgb, var(--mat-sys-primary) 55%, transparent); }
+    .wb-frame:focus-visible { outline: 2px solid var(--mat-sys-primary); }
+    .wb-frame-selected, .wb-frame-selected:hover { outline: 2px solid var(--mat-sys-primary); z-index: 1; }
+    .wb-frame-hidden { opacity: 0.45; }
+    .wb-frame-label {
+      position: absolute; top: 0; left: 0; z-index: 6; display: none; align-items: center; gap: 2px; max-width: 220px; height: 20px;
+      padding: 0 10px 0 4px; border-radius: 6px 0 10px 0; background: var(--mat-sys-primary); color: var(--mat-sys-on-primary); cursor: grab;
+    }
+    .wb-frame-label .mat-icon { flex-shrink: 0; font-size: 16px; width: 16px; height: 16px; }
+    .wb-frame:hover > .wb-frame-label, .wb-frame-selected > .wb-frame-label { display: flex; }
+    .wb-frame:not(.wb-frame-selected):hover > .wb-frame-label { background: color-mix(in srgb, var(--mat-sys-primary) 75%, transparent); }
+    .wb-frame-container > .wb-contents > .wb-section, .wb-frame-container { min-height: 32px; }
+    .wb-drop-list.wb-drop-empty { min-height: 56px; }
+    .wb-empty-drop.mat-mdc-button { width: 100%; min-height: 56px; border: 1px dashed var(--mat-sys-outline); border-radius: var(--mat-sys-corner-small); color: var(--mat-sys-on-surface-variant); }
+    .wb-child-select.mat-mdc-button { align-self: flex-start; height: 28px; font: var(--mat-sys-label-small); }
+    .wb-dialog-inline { padding: var(--ui-space-5); border: 1px dashed var(--mat-sys-outline); }
+    .wb-edit-hint { display: flex; align-items: center; gap: 4px; padding-block-end: var(--ui-space-2); }
+  }
+  .wb-drop-placeholder { min-height: 40px; border: 2px dashed var(--mat-sys-primary); border-radius: var(--mat-sys-corner-small); background: color-mix(in srgb, var(--mat-sys-primary) 8%, transparent); }
+  .cdk-drag-preview { box-sizing: border-box; }
+  .cdk-drag-preview.wb-frame { outline: 2px solid var(--mat-sys-primary); background: var(--mat-sys-surface); box-shadow: var(--mat-sys-level3); opacity: 0.9; }
+  .cdk-drag-animating { transition: transform 200ms cubic-bezier(0, 0, 0.2, 1); }
+  .wb-drop-list.cdk-drop-list-dragging > .wb-frame:not(.cdk-drag-placeholder) { transition: transform 200ms cubic-bezier(0, 0, 0.2, 1); }
+  .wb-drop-list.cdk-drop-list-receiving { outline: 1px dashed var(--mat-sys-primary); outline-offset: -1px; }
+
+  // Projects
+  .wb-project-card { overflow: hidden; transition: transform var(--ui-duration-medium) var(--ui-ease-emphasized), box-shadow var(--ui-duration-medium) var(--ui-ease-standard); }
+  .wb-project-card:hover { transform: translateY(-2px); box-shadow: var(--mat-sys-level2); }
+  .wb-project-thumb {
+    height: 132px; text-decoration: none; position: relative; overflow: hidden;
+    background:
+      radial-gradient(120% 90% at 0% 0%, var(--mat-sys-primary-container) 0%, transparent 60%),
+      radial-gradient(90% 90% at 100% 100%, var(--mat-sys-tertiary-container) 0%, transparent 60%),
+      var(--mat-sys-surface-container-high);
+  }
+  .wb-project-initials { font: var(--mat-sys-display-small); letter-spacing: -0.02em; color: var(--mat-sys-on-primary-container); }
+
+  // Home
+  .wb-hero-mesh {
+    background:
+      radial-gradient(60% 80% at 10% 0%, var(--mat-sys-primary-container) 0%, transparent 70%),
+      radial-gradient(50% 70% at 95% 20%, var(--mat-sys-tertiary-container) 0%, transparent 70%),
+      radial-gradient(70% 60% at 50% 120%, var(--mat-sys-secondary-container) 0%, transparent 70%),
+      var(--mat-sys-surface);
+  }
+  .wb-hero-title { font: var(--mat-sys-display-medium); letter-spacing: -0.03em; margin: 0; max-width: 18ch; }
+  .wb-bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--ui-space-4); }
+  .wb-bento > :first-child { grid-column: span 2; grid-row: span 2; }
+  .wb-bento-card { border-radius: var(--mat-sys-corner-extra-large); padding: var(--ui-space-5); background: var(--mat-sys-surface-container-low); border: 1px solid var(--mat-sys-outline-variant); display: flex; flex-direction: column; gap: var(--ui-space-3); }
+  .wb-bento-card:first-child { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); border-color: transparent; }
+  .wb-bento-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: var(--mat-sys-corner-large); background: var(--mat-sys-surface); color: var(--mat-sys-primary); }
+  @media (max-width: 959.98px) { .wb-bento { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 599.98px) { .wb-bento { grid-template-columns: minmax(0, 1fr); } .wb-bento > :first-child { grid-column: auto; grid-row: auto; } .wb-hero-title { font: var(--mat-sys-display-small); } }
+
+  // Logic builder
+  .wb-condition { padding: 8px; border-radius: var(--mat-sys-corner-medium); background: var(--mat-sys-surface-container-low); }
+  .wb-condition-group { padding: 8px; border-radius: var(--mat-sys-corner-medium); border: 1px dashed var(--mat-sys-outline-variant); }
+  .wb-logic-result { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 6px 10px; border-radius: var(--mat-sys-corner-small); background: var(--mat-sys-surface-container-high); overflow-wrap: anywhere; }
+  .wb-logic-chip { padding: 2px 8px; border-radius: var(--mat-sys-corner-full); background: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container); font: var(--mat-sys-label-small); }
+  .wb-method-select { flex: 0 0 112px; }
+  .wb-pair-key { flex: 0 0 38%; min-width: 0; }
+  .wb-source-select { flex: 0 0 132px; }
+  .wb-advanced.mat-expansion-panel { background: var(--mat-sys-surface-container-low); border-radius: var(--mat-sys-corner-medium); box-shadow: none; }
+  .wb-studio-loading { display: grid; grid-template-columns: 304px minmax(0, 1fr) 340px; gap: 8px; padding: 0 8px 8px; height: calc(100dvh - 56px); }
+  .wb-studio-loading > * { background: var(--mat-sys-surface-container-lowest); border-radius: var(--mat-sys-corner-extra-large); overflow: hidden; }
+  @media (max-width: 1199.98px) { .wb-studio-loading { grid-template-columns: minmax(0, 1fr); } .wb-studio-loading > :not(:nth-child(2)) { display: none; } }
+}

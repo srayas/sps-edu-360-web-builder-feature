@@ -1,0 +1,143 @@
+@let b = block();
+@if (hiddenByLogic()) { <span class="wb-logic-badge mat-font-label-sm">Hidden by logic</span> }
+@if (visible()) {
+  @switch (kind()) {
+    @case ('section') {
+      <section [class]="classes()" [attr.id]="b.props['anchor'] || null">
+        <wb-block-list [blocks]="b.children" [parentId]="b.id" parentType="section" [layoutClass]="layout()" [scope]="scope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" />
+      </section>
+    }
+    @case ('container') { <div [class]="classes()"><wb-block-list [blocks]="b.children" [parentId]="b.id" parentType="container" [layoutClass]="layout()" [scope]="scope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" /></div> }
+    @case ('row') { <div [class]="classes()"><wb-block-list [blocks]="b.children" [parentId]="b.id" parentType="row" [layoutClass]="layout()" [scope]="scope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" /></div> }
+    @case ('stack') { <div [class]="classes()"><wb-block-list [blocks]="b.children" [parentId]="b.id" parentType="stack" [layoutClass]="layout()" [scope]="scope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" /></div> }
+    @case ('grid') { <div [class]="classes()"><wb-block-list [blocks]="b.children" [parentId]="b.id" parentType="grid" [layoutClass]="layout()" [scope]="scope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" /></div> }
+
+    @case ('card') {
+      <mat-card [appearance]="$any(b.props['appearance'])" [class]="classes()" [class.wb-clickable]="hasClick()"
+                [matTooltip]="t('tooltip')" [matTooltipDisabled]="!b.props['tooltip']" (click)="cardClick($event)">
+        @if (media('image'); as image) { <img mat-card-image class="wb-card-media" [src]="image" [alt]="t('imageAlt')" loading="lazy"> }
+        @if (b.props['title'] || b.props['subtitle'] || b.props['avatar']) {
+          <mat-card-header>
+            @if (b.props['avatar']) { <mat-icon mat-card-avatar class="wb-card-avatar mat-bg-primary-container mat-text-on-primary-container">{{ b.props['avatar'] }}</mat-icon> }
+            @if (b.props['title']) { <mat-card-title>{{ t('title') }}</mat-card-title> }
+            @if (b.props['subtitle']) { <mat-card-subtitle>{{ t('subtitle') }}</mat-card-subtitle> }
+          </mat-card-header>
+        }
+        <mat-card-content>
+          <wb-block-list [blocks]="b.children" [parentId]="b.id" parentType="card" [layoutClass]="layout()" [scope]="scope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" />
+        </mat-card-content>
+      </mat-card>
+    }
+
+    @case ('toolbar') {
+      <mat-toolbar [class]="classes()" [class.wb-sticky]="bool('sticky')">
+        @if (b.props['icon']) { <mat-icon class="mat-text-primary">{{ b.props['icon'] }}</mat-icon> }
+        @if (b.props['title']) { <span class="mat-font-title-lg ui-shrink-0">{{ t('title') }}</span> }
+        <wb-block-list class="ui-grow" [blocks]="b.children" [parentId]="b.id" parentType="toolbar" [layoutClass]="layout() + ' ui-justify-end'" [scope]="scope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" />
+      </mat-toolbar>
+    }
+
+    @case ('repeater') {
+      <div [class]="classes()">
+        @if (editing()) {
+          <p class="wb-edit-hint mat-font-label-md mat-text-on-surface-variant ui-m-0">
+            <mat-icon class="ui-icon-sm" aria-hidden="true">dynamic_feed</mat-icon>
+            Repeats for {{ items().length }} {{ items().length === 1 ? 'row' : 'rows' }} — editing the first row
+          </p>
+          <wb-block-list [blocks]="b.children" [parentId]="b.id" parentType="repeater" [layoutClass]="layout()" [scope]="sampleScope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" />
+        } @else if (repeaterLoading()) {
+          <div [class]="layout()">
+            @for (placeholder of [1, 2, 3]; track placeholder) { <wb-block-skeleton type="card" [label]="b.name" /> }
+          </div>
+        } @else if (items().length) {
+          <div [class]="layout()">
+            @for (item of items(); track $index) {
+              <wb-block-list [blocks]="b.children" [parentId]="b.id + '-' + $index" parentType="repeater" layoutClass="ui-column ui-gap-4" [scope]="item" [readonly]="true" [disabled]="childrenDisabled()" />
+            }
+          </div>
+        } @else {
+          <p class="mat-font-body-md mat-text-on-surface-variant">{{ t('emptyText') }}</p>
+        }
+      </div>
+    }
+
+    @case ('tabs') {
+      <mat-tab-group [class]="classes()" [mat-align-tabs]="$any(b.props['alignTabs'])" [mat-stretch-tabs]="bool('stretch')" animationDuration="200ms">
+        @for (tab of b.children; track tab.id) {
+          @if (show(tab)) {
+            <mat-tab>
+              <ng-template mat-tab-label>
+                @if (tab.props['icon']) { <mat-icon class="ui-icon-sm">{{ tab.props['icon'] }}</mat-icon> }
+                <span>{{ t('label', tab) }}</span>
+              </ng-template>
+              <div [class]="classesOf(tab)">
+                @if (editing()) { <button matButton type="button" class="wb-child-select" (click)="selectChild($event, tab.id)"><mat-icon>tab</mat-icon>Select tab “{{ tab.name }}”</button> }
+                <wb-block-list [blocks]="tab.children" [parentId]="tab.id" parentType="tab" [layoutClass]="layoutOf(tab)" [scope]="scope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" />
+              </div>
+            </mat-tab>
+          }
+        }
+      </mat-tab-group>
+    }
+
+    @case ('accordion') {
+      <mat-accordion [class]="classes()" [multi]="bool('multi')">
+        @for (panel of b.children; track panel.id) {
+          @if (show(panel)) {
+            <mat-expansion-panel [expanded]="bool('expanded', panel)" [class]="classesOf(panel)">
+              <mat-expansion-panel-header>
+                <mat-panel-title>{{ t('title', panel) }}</mat-panel-title>
+                @if (panel.props['description']) { <mat-panel-description>{{ t('description', panel) }}</mat-panel-description> }
+              </mat-expansion-panel-header>
+              @if (editing()) { <button matButton type="button" class="wb-child-select" (click)="selectChild($event, panel.id)"><mat-icon>unfold_more</mat-icon>Select panel</button> }
+              <wb-block-list [blocks]="panel.children" [parentId]="panel.id" parentType="panel" [layoutClass]="layoutOf(panel)" [scope]="scope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" />
+            </mat-expansion-panel>
+          }
+        }
+      </mat-accordion>
+    }
+
+    @case ('stepper') {
+      <mat-stepper #stepper [class]="classes()" [orientation]="$any(b.props['orientation'])" [linear]="bool('linear')">
+        @for (step of b.children; track step.id; let first = $first; let last = $last) {
+          @if (show(step)) {
+            <mat-step [label]="t('label', step)" [optional]="bool('optional', step)">
+              <div [class]="classesOf(step)">
+                @if (editing()) { <button matButton type="button" class="wb-child-select" (click)="selectChild($event, step.id)"><mat-icon>looks_one</mat-icon>Select step</button> }
+                <wb-block-list [blocks]="step.children" [parentId]="step.id" parentType="step" [layoutClass]="layoutOf(step)" [scope]="scope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" />
+                @if (bool('navigation', step)) {
+                  <div class="ui-row ui-gap-2 ui-mt-4">
+                    @if (!first) { <button matButton="outlined" type="button" matStepperPrevious>Back</button> }
+                    @if (!last) { <button matButton="filled" type="button" matStepperNext>Next</button> }
+                  </div>
+                }
+              </div>
+            </mat-step>
+          }
+        }
+      </mat-stepper>
+    }
+
+    @case ('form') { <wb-form-block [block]="b" [scope]="scope()" [depth]="depth()" [disabled]="childrenDisabled()" /> }
+
+    @case ('dialog') {
+      @if (editing()) {
+        <div [class]="classes() + ' wb-dialog-inline mat-bg-surface-container-high mat-text-on-surface mat-corner-xl mat-shadow-3'">
+          <div class="ui-row ui-align-center ui-gap-2 ui-mb-3">
+            <mat-icon class="mat-text-primary">open_in_new</mat-icon>
+            <h2 class="mat-font-headline-sm ui-m-0 ui-grow">{{ t('title') }}</h2>
+            <span class="mat-font-label-sm mat-text-on-surface-variant">Dialog · opens from an action</span>
+          </div>
+          <wb-block-list [blocks]="b.children" [parentId]="b.id" parentType="dialog" [layoutClass]="layout()" [scope]="scope()" [depth]="depth() + 1" [disabled]="childrenDisabled()" />
+        </div>
+      }
+    }
+
+    @case ('content') { <wb-content-block [block]="b" [scope]="scope()" /> }
+    @case ('nav') { <wb-nav-block [block]="b" [scope]="scope()" /> }
+    @case ('data') { <wb-data-block [block]="b" [scope]="scope()" /> }
+    @case ('field') { <wb-field-block [block]="b" [scope]="scope()" [computed]="state().value" [choices]="state().options" /> }
+    @case ('table') { <wb-table-block [block]="b" [scope]="scope()" /> }
+    @case ('chart') { <wb-chart-block [block]="b" [scope]="scope()" /> }
+  }
+}

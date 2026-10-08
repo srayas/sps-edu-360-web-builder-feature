@@ -1,0 +1,175 @@
+@if (store.selected(); as block) {
+  <div class="wb-inspector ui-column ui-full-height">
+    <header class="ui-column ui-gap-2 ui-p-3 ui-divider-bottom">
+      <nav class="ui-row ui-wrap ui-align-center ui-gap-1 mat-font-label-sm" aria-label="Selection path">
+        <button matButton type="button" class="wb-crumb" (click)="store.selectedId.set('')">Page</button>
+        @for (ancestor of store.selectedPath(); track ancestor.id; let last = $last) {
+          <mat-icon class="ui-icon-sm mat-text-on-surface-variant" aria-hidden="true">chevron_right</mat-icon>
+          <button matButton type="button" class="wb-crumb" [disabled]="last" (click)="store.selectedId.set(ancestor.id)">{{ ancestor.name }}</button>
+        }
+      </nav>
+      <div class="ui-row ui-align-center ui-gap-2">
+        <mat-icon class="mat-text-primary ui-shrink-0">{{ definition()?.icon }}</mat-icon>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow wb-dense-field">
+          <mat-label>{{ definition()?.label }} name</mat-label>
+          <input matInput [value]="block.name" (input)="store.rename($any($event.target).value)">
+        </mat-form-field>
+      </div>
+      <div class="ui-row ui-align-center ui-gap-1">
+        <button matIconButton type="button" matTooltip="Select parent" aria-label="Select parent" [disabled]="store.selectedPath().length < 2" (click)="store.selectParent()"><mat-icon>arrow_upward_alt</mat-icon></button>
+        <button matIconButton type="button" matTooltip="Move up" aria-label="Move up" (click)="store.nudge(-1)"><mat-icon>keyboard_arrow_up</mat-icon></button>
+        <button matIconButton type="button" matTooltip="Move down" aria-label="Move down" (click)="store.nudge(1)"><mat-icon>keyboard_arrow_down</mat-icon></button>
+        <span class="ui-spacer"></span>
+        <button matIconButton type="button" matTooltip="Copy (Ctrl+C)" aria-label="Copy" (click)="store.copy()"><mat-icon>content_copy</mat-icon></button>
+        <button matIconButton type="button" matTooltip="Duplicate (Ctrl+D)" aria-label="Duplicate" (click)="store.duplicate()"><mat-icon>library_add</mat-icon></button>
+        <button matIconButton type="button" matTooltip="Delete (Del)" aria-label="Delete" (click)="store.delete()"><mat-icon>delete_outline</mat-icon></button>
+      </div>
+    </header>
+
+    <mat-tab-group class="wb-panel-tabs ui-grow ui-min-0" mat-stretch-tabs animationDuration="0ms">
+      <!-- Properties -->
+      <mat-tab label="Properties">
+        <div class="ui-column ui-gap-4 ui-p-3">
+          <p class="mat-font-body-sm mat-text-on-surface-variant ui-m-0">{{ definition()?.description }}</p>
+          @if (childType(); as child) {
+            <button matButton="tonal" type="button" (click)="store.addStructuredChild()"><mat-icon>add</mat-icon>Add {{ child.label.toLowerCase() }}</button>
+          }
+          @if (block.type === 'dialog') {
+            <p class="mat-font-body-sm ui-m-0 wb-note mat-bg-secondary-container mat-text-on-secondary-container mat-corner-sm ui-p-2">Open this dialog from any button with an <strong>Open dialog</strong> action (Logic tab).</p>
+          }
+          @if (block.type === 'repeater' || block.props['source']) {
+            <p class="mat-font-body-sm ui-m-0 wb-note mat-bg-secondary-container mat-text-on-secondary-container mat-corner-sm ui-p-2">Use <code>{{ '{{item.field}}' }}</code> in text inside a repeater, and <code>{{ '{{vars.name}}' }}</code> anywhere.</p>
+          }
+          @for (section of sections(); track section.key) {
+            <section class="ui-column ui-gap-3">
+              <h3 class="mat-font-title-sm ui-m-0">{{ section.label }}</h3>
+              @for (prop of section.props; track prop.key) { <wb-prop-field [prop]="prop" [block]="block" /> }
+            </section>
+          }
+        </div>
+      </mat-tab>
+
+      <!-- Design overrides -->
+      <mat-tab>
+        <ng-template mat-tab-label>Design @if (overridden()) { <span class="wb-dot mat-bg-primary" aria-label="has overrides"></span> }</ng-template>
+        <ng-template matTabContent>
+        <div class="ui-column ui-gap-3 ui-p-3 ui-fade-in">
+          <p class="mat-font-body-sm mat-text-on-surface-variant ui-m-0">Blocks follow the app theme. Values set here override it for this block only.</p>
+          <mat-button-toggle-group class="ui-fill wb-scope-toggle" [value]="scope()" (change)="scope.set($event.value)" aria-label="Apply to screen size" hideSingleSelectionIndicator>
+            <mat-button-toggle value="styles"><mat-icon>devices</mat-icon> All @if (scopeCount(block, 'styles')) { ({{ scopeCount(block, 'styles') }}) }</mat-button-toggle>
+            <mat-button-toggle value="tabletStyles"><mat-icon>tablet_mac</mat-icon> Tablet @if (scopeCount(block, 'tabletStyles')) { ({{ scopeCount(block, 'tabletStyles') }}) }</mat-button-toggle>
+            <mat-button-toggle value="mobileStyles"><mat-icon>phone_iphone</mat-icon> Mobile @if (scopeCount(block, 'mobileStyles')) { ({{ scopeCount(block, 'mobileStyles') }}) }</mat-button-toggle>
+          </mat-button-toggle-group>
+          <mat-accordion multi displayMode="flat">
+            @for (group of styleGroups; track group.label) {
+              <mat-expansion-panel [expanded]="hasGroupOverrides(block, group)">
+                <mat-expansion-panel-header>
+                  <mat-panel-title class="ui-gap-2"><mat-icon class="ui-icon-sm">{{ group.icon }}</mat-icon>{{ group.label }}</mat-panel-title>
+                  @if (hasGroupOverrides(block, group)) { <mat-panel-description>Overridden</mat-panel-description> }
+                </mat-expansion-panel-header>
+                <div class="ui-column ui-gap-3">
+                  @for (item of group.properties; track item.property) {
+                    @let current = styleValue(block, item.property);
+                    @switch (item.input) {
+                      @case ('select') {
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>{{ item.label }}</mat-label>
+                          <mat-select [value]="current" (selectionChange)="setStyle(item, $event.value)">
+                            <mat-option value="">Theme default</mat-option>
+                            @for (option of item.options; track option) { <mat-option [value]="option">{{ option }}</mat-option> }
+                          </mat-select>
+                        </mat-form-field>
+                      }
+                      @case ('color') {
+                        <div class="ui-row ui-gap-2 ui-align-start">
+                          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow">
+                            <mat-label>{{ item.label }}</mat-label>
+                            <mat-select [value]="isThemeColor(current) ? current : current ? 'custom' : ''" (selectionChange)="pickColor(item, $event.value)">
+                              <mat-option value="">Theme default</mat-option>
+                              @for (color of themeColors; track color.value) { <mat-option [value]="color.value"><span [class]="'wb-swatch-dot wb-token-' + color.label.replaceAll(' ', '-')"></span>{{ color.label }}</mat-option> }
+                              <mat-option value="custom">Custom…</mat-option>
+                            </mat-select>
+                          </mat-form-field>
+                          <input type="color" class="wb-color-input" [value]="current.startsWith('#') ? current : '#000000'" (change)="setStyle(item, $any($event.target).value)" [attr.aria-label]="item.label + ' custom color'">
+                        </div>
+                      }
+                      @default {
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>{{ item.label }}</mat-label>
+                          <input matInput [value]="current" [placeholder]="item.placeholder ?? ''" (change)="setStyle(item, $any($event.target).value)" (keydown.enter)="setStyle(item, $any($event.target).value)">
+                          @if (current) { <button matIconSuffix matIconButton type="button" [attr.aria-label]="'Clear ' + item.label" (click)="setStyle(item, '')"><mat-icon>close</mat-icon></button> }
+                          @if (error(item.property)) { <mat-hint class="mat-text-error">{{ error(item.property) }}</mat-hint> }
+                        </mat-form-field>
+                      }
+                    }
+                  }
+                </div>
+              </mat-expansion-panel>
+            }
+          </mat-accordion>
+          <button matButton="outlined" type="button" [disabled]="!overridden()" (click)="store.resetStyles()"><mat-icon>format_color_reset</mat-icon>Reset to theme</button>
+        </div>
+        </ng-template>
+      </mat-tab>
+
+      <!-- Behaviour -->
+      <mat-tab>
+        <ng-template mat-tab-label>Logic @if (hasLogic()) { <span class="wb-dot wb-bg-tertiary-container" aria-label="has logic"></span> }</ng-template>
+        <ng-template matTabContent>
+        <div class="ui-column ui-gap-4 ui-p-3 ui-fade-in">
+          <wb-block-logic-panel [block]="block" />
+          <mat-divider />
+          <h3 class="mat-font-title-sm ui-m-0">Actions</h3>
+          @for (trigger of triggers(); track trigger) {
+            <section class="ui-column ui-gap-2">
+              <div class="ui-row ui-align-center">
+                <h3 class="mat-font-title-sm ui-m-0 ui-grow">{{ triggerLabels[trigger] }}</h3>
+                <button matButton type="button" [matMenuTriggerFor]="addAction"><mat-icon>add</mat-icon>Action</button>
+                <mat-menu #addAction="matMenu">
+                  @for (type of actionTypes; track type.type) {
+                    <button mat-menu-item (click)="store.addAction(trigger, type.type)"><mat-icon>{{ type.icon }}</mat-icon><span>{{ type.label }}</span></button>
+                  }
+                </mat-menu>
+              </div>
+              @for (action of actionsFor(block, trigger); track action.id; let index = $index; let last = $last) {
+                <wb-action-editor [action]="action" [index]="index" [last]="last" />
+              } @empty {
+                <p class="mat-font-body-sm mat-text-on-surface-variant ui-m-0">No actions. {{ trigger === 'submit' ? 'Valid submissions show the success message.' : '' }}</p>
+              }
+            </section>
+          } @empty {
+            <p class="mat-font-body-sm mat-text-on-surface-variant ui-m-0">This block has no events. Buttons, links, images, icons, cards, forms and fields can run actions.</p>
+          }
+          <mat-divider />
+          <section class="ui-column ui-gap-3">
+            <h3 class="mat-font-title-sm ui-m-0">Visibility</h3>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Show only when variable</mat-label>
+              <mat-select [value]="block.visibility.variable" (selectionChange)="store.updateVisibility({ variable: $event.value })">
+                <mat-option value="">Always show</mat-option>
+                @for (variable of store.project().variables; track variable.id) { <mat-option [value]="variable.id">{{ variable.name }}</mat-option> }
+              </mat-select>
+              @if (!store.project().variables.length) { <mat-hint>Create variables in the Data panel.</mat-hint> }
+            </mat-form-field>
+            @if (block.visibility.variable) {
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>Equals (empty = any truthy value)</mat-label>
+                <input matInput [value]="block.visibility.equals" (input)="store.updateVisibility({ equals: $any($event.target).value })">
+              </mat-form-field>
+              <mat-slide-toggle [checked]="block.visibility.negate" (change)="store.updateVisibility({ negate: $event.checked })">Invert (hide when it matches)</mat-slide-toggle>
+            }
+            <span class="mat-font-label-lg">Hide on</span>
+            <div class="ui-row ui-wrap ui-gap-3">
+              @for (viewport of viewports; track viewport) {
+                <mat-checkbox [checked]="block.visibility.hideOn.includes(viewport)" (change)="toggleHide(block, viewport, $event.checked)">{{ viewport }}</mat-checkbox>
+              }
+            </div>
+          </section>
+        </div>
+        </ng-template>
+      </mat-tab>
+    </mat-tab-group>
+  </div>
+} @else {
+  <ui-empty-state icon="touch_app" heading="Nothing selected" message="Select a block on the canvas or in Layers to edit it. Page settings live in the Pages panel." />
+}

@@ -1,0 +1,14 @@
+// Application shell (side navigation + top bar) used by every app built on shared-ui.
+@mixin shell-classes() {
+  .ui-shell { height: 100dvh; }
+  .ui-shell-nav { width: 264px; }
+  .ui-shell-nav .mat-mdc-nav-list .mat-mdc-list-item.ui-nav-child { padding-inline-start: 48px; }
+  .ui-shell-brand { min-height: 64px; text-decoration: none; }
+  .ui-shell-main { min-height: calc(100dvh - 64px); }
+  .ui-nav-bar.mat-toolbar { position: sticky; top: 0; z-index: 2; }
+  .ui-nav-search { width: min(420px, 40vw); }
+  .ui-nav-search .mat-mdc-form-field-subscript-wrapper { display: none; }
+  .ui-nav-bar a { text-decoration: none; }
+  .ui-nav-bar a:hover { text-decoration: underline; }
+  .ui-active-link { background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); }
+}

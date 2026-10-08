@@ -1,0 +1,230 @@
+<div class="ui-column ui-gap-3 ui-p-3">
+  <!-- Variables ------------------------------------------------------------------------------- -->
+  <div class="ui-row ui-align-center">
+    <h2 class="mat-font-title-md ui-m-0 ui-grow">Variables</h2>
+    <button matButton="tonal" type="button" (click)="store.addVariable()"><mat-icon>add</mat-icon>Variable</button>
+  </div>
+  <p class="mat-font-body-sm mat-text-on-surface-variant ui-m-0">Use as <code>{{ '{{vars.name}}' }}</code>. Plain variables change through actions and bound fields; computed ones follow a formula.</p>
+  @for (variable of store.project().variables; track variable.id) {
+    <div class="ui-column ui-gap-2 ui-p-3 mat-bg-surface-container-low mat-corner-lg">
+      <div class="ui-row ui-gap-2 ui-align-start">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow">
+          <mat-label>Name</mat-label>
+          <input matInput [value]="variable.name" (change)="renameVariable(variable, $any($event.target).value)">
+          @if (errors()[variable.id]) { <mat-hint class="mat-text-error">{{ errors()[variable.id] }}</mat-hint> }
+        </mat-form-field>
+        <button matIconButton type="button" matTooltip="Delete variable" [attr.aria-label]="'Delete ' + variable.name" (click)="store.removeVariable(variable.id)"><mat-icon>delete_outline</mat-icon></button>
+      </div>
+      <mat-slide-toggle [checked]="!!variable.formula" (change)="toggleFormula(variable, $event.checked)">Computed from a formula</mat-slide-toggle>
+      @if (variable.formula) {
+        <wb-expr-editor [expr]="variable.formula" purpose="value" [paths]="scopeOptions()" [scope]="runtime.scope()" [clearable]="false" (exprChange)="setFormula(variable, $event)" />
+      } @else {
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Initial value</mat-label>
+          <input matInput [value]="variable.initial" (input)="store.updateVariable(variable.id, { initial: $any($event.target).value })">
+        </mat-form-field>
+        <mat-slide-toggle [checked]="variable.persist" (change)="store.updateVariable(variable.id, { persist: $event.checked })">Remember for each visitor</mat-slide-toggle>
+      }
+    </div>
+  } @empty {
+    <p class="mat-font-body-md mat-text-on-surface-variant ui-m-0">No variables yet.</p>
+  }
+
+  <mat-divider />
+
+  <!-- Data sources ----------------------------------------------------------------------------- -->
+  <div class="ui-row ui-align-center">
+    <h2 class="mat-font-title-md ui-m-0 ui-grow">Data & APIs</h2>
+    <button matButton="tonal" type="button" [matMenuTriggerFor]="addSource"><mat-icon>add</mat-icon>Source</button>
+    <mat-menu #addSource="matMenu">
+      <button mat-menu-item (click)="store.addSource('static')"><mat-icon>data_array</mat-icon><span>Static JSON</span></button>
+      <button mat-menu-item (click)="store.addSource('rest')"><mat-icon>api</mat-icon><span>REST API</span></button>
+      <button mat-menu-item (click)="store.addSource('collection')"><mat-icon>inventory_2</mat-icon><span>Collection (records)</span></button>
+    </mat-menu>
+  </div>
+  <p class="mat-font-body-sm mat-text-on-surface-variant ui-m-0">Frame queries visually — no query text. Values from fields and variables are bound safely and the data reloads when they change.</p>
+
+  <mat-accordion multi displayMode="flat">
+    @for (source of store.project().dataSources; track source.id) {
+      <mat-expansion-panel>
+        <mat-expansion-panel-header>
+          <mat-panel-title class="ui-gap-2"><mat-icon class="ui-icon-sm">{{ icon(source) }}</mat-icon>{{ source.name }}</mat-panel-title>
+          <mat-panel-description>
+            @if (source.mode === 'mutation') { action }
+            @else if (runtime.status()[source.id] === 'loading') { loading… }
+            @else if (runtime.status()[source.id] === 'error') { <span class="mat-text-error">error</span> }
+            @else { {{ runtime.rowsFor(source.id).length }}/{{ rawCount(source) }} rows }
+          </mat-panel-description>
+        </mat-expansion-panel-header>
+
+        <div class="ui-column ui-gap-3">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Name</mat-label>
+            <input matInput [value]="source.name" (change)="patch(source, { name: $any($event.target).value.trim() })">
+            @if (errors()[source.id + ':name']) { <mat-hint class="mat-text-error">{{ errors()[source.id + ':name'] }}</mat-hint> }
+            @else { <mat-hint>Read it as {{ '{{data.' + source.name + '}}' }}</mat-hint> }
+          </mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Type</mat-label>
+            <mat-select [value]="source.kind" (selectionChange)="patch(source, { kind: $event.value })">
+              <mat-option value="static">Static JSON</mat-option>
+              <mat-option value="rest">REST API</mat-option>
+              <mat-option value="collection">Collection</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          @if (source.kind === 'rest') {
+            <mat-button-toggle-group [value]="source.mode" (change)="setMode(source, $event.value)" hideSingleSelectionIndicator aria-label="Use" class="ui-fill">
+              <mat-button-toggle value="query"><mat-icon>download</mat-icon> Load data</mat-button-toggle>
+              <mat-button-toggle value="mutation"><mat-icon>send</mat-icon> Action</mat-button-toggle>
+            </mat-button-toggle-group>
+            <div class="ui-row ui-gap-2">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="wb-method-select">
+                <mat-label>Method</mat-label>
+                <mat-select [value]="source.method" (selectionChange)="patch(source, { method: $event.value })">
+                  @for (method of methods; track method) { <mat-option [value]="method">{{ method }}</mat-option> }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow">
+                <mat-label>URL</mat-label>
+                <input matInput type="url" [value]="source.url" (change)="patch(source, { url: $any($event.target).value })" placeholder="https://api.example.com/items/{{ '{{fields.id}}' }}">
+              </mat-form-field>
+            </div>
+
+            <div class="ui-row ui-align-center"><span class="mat-font-label-lg ui-grow">Query parameters</span><button matButton type="button" (click)="addPair(source, 'params')"><mat-icon>add</mat-icon>Add</button></div>
+            @for (pair of source.params; track $index; let index = $index) {
+              <div class="ui-row ui-gap-2 ui-align-start">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="wb-pair-key"><mat-label>Name</mat-label><input matInput [value]="pair.key" (change)="editPair(source, 'params', index, { key: $any($event.target).value })"></mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow">
+                  <mat-label>Value</mat-label>
+                  <input matInput [value]="pair.value" (change)="editPair(source, 'params', index, { value: $any($event.target).value })" placeholder="{{ '{{fields.search}}' }}">
+                  <button matIconButton matSuffix type="button" [matMenuTriggerFor]="paramMenu" aria-label="Insert a value"><mat-icon>add_circle</mat-icon></button>
+                </mat-form-field>
+                <mat-menu #paramMenu="matMenu">
+                  @for (option of queryInputs(); track option.path) { <button mat-menu-item (click)="editPair(source, 'params', index, { value: '{{' + option.path + '}}' })">{{ option.label }}</button> }
+                </mat-menu>
+                <button matIconButton type="button" class="wb-icon-button-sm" aria-label="Remove parameter" (click)="removePair(source, 'params', index)"><mat-icon>close</mat-icon></button>
+              </div>
+            }
+
+            <div class="ui-row ui-align-center"><span class="mat-font-label-lg ui-grow">Headers</span><button matButton type="button" (click)="addPair(source, 'headers')"><mat-icon>add</mat-icon>Add</button></div>
+            @for (pair of source.headers; track $index; let index = $index) {
+              <div class="ui-row ui-gap-2 ui-align-start">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="wb-pair-key"><mat-label>Header</mat-label><input matInput [value]="pair.key" (change)="editPair(source, 'headers', index, { key: $any($event.target).value })"></mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow"><mat-label>Value</mat-label><input matInput [value]="pair.value" (change)="editPair(source, 'headers', index, { value: $any($event.target).value })"></mat-form-field>
+                <button matIconButton type="button" class="wb-icon-button-sm" aria-label="Remove header" (click)="removePair(source, 'headers', index)"><mat-icon>close</mat-icon></button>
+              </div>
+            }
+            @if (source.headers.length) { <p class="mat-font-body-sm mat-text-error ui-m-0">Headers ship to the browser. Never put secret keys here.</p> }
+
+            @if (source.method !== 'GET') {
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>JSON body</mat-label>
+                <textarea matInput rows="6" class="wb-mono" [value]="source.body" (change)="setBody(source, $any($event.target).value)" spellcheck="false"></textarea>
+                <button matIconButton matSuffix type="button" [matMenuTriggerFor]="bodyMenu" aria-label="Insert a value"><mat-icon>add_circle</mat-icon></button>
+                <mat-hint>Values are inserted as JSON, so they can't break the body. "{{ '{{form}}' }}" sends the whole form.</mat-hint>
+              </mat-form-field>
+              <mat-menu #bodyMenu="matMenu">
+                <button mat-menu-item (click)="insertIntoBody(source, 'form')">Whole form</button>
+                @for (option of queryInputs(); track option.path) { <button mat-menu-item (click)="insertIntoBody(source, option.path)">{{ option.label }}</button> }
+              </mat-menu>
+            }
+
+            @if (source.mode === 'query') {
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>Path to the list (optional)</mat-label>
+                <input matInput [value]="source.path" placeholder="data.items" (change)="patch(source, { path: $any($event.target).value })">
+              </mat-form-field>
+              <mat-slide-toggle [checked]="source.autoLoad" (change)="patch(source, { autoLoad: $event.checked })">Load automatically and reload when its values change</mat-slide-toggle>
+              <div class="ui-row ui-gap-2">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow">
+                  <mat-label>Cache (seconds)</mat-label>
+                  <input matInput type="number" min="0" [value]="source.cacheSeconds" (change)="patch(source, { cacheSeconds: +$any($event.target).value })">
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow">
+                  <mat-label>Refresh every (s)</mat-label>
+                  <input matInput type="number" min="0" [value]="source.refreshSeconds" (change)="patch(source, { refreshSeconds: +$any($event.target).value })">
+                </mat-form-field>
+              </div>
+              @if (runtime.status()[source.id] === 'loading') { <mat-progress-bar mode="indeterminate" /> }
+              @if (runtime.errors()[source.id]) { <p class="mat-font-body-sm mat-text-error ui-m-0">{{ runtime.errors()[source.id] }}</p> }
+              <button matButton="outlined" type="button" (click)="runtime.load(source.id, true)"><mat-icon>refresh</mat-icon>Load now</button>
+            } @else {
+              <p class="mat-font-body-sm mat-text-on-surface-variant ui-m-0">Call it from a button or form with the <strong>Call API</strong> action. Requests are queued, retried and kept while offline.</p>
+            }
+          } @else {
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ source.kind === 'collection' ? 'Starting records (JSON array)' : 'Rows (JSON array)' }}</mat-label>
+              <textarea matInput rows="6" class="wb-mono" [value]="source.json" (change)="patch(source, { json: $any($event.target).value })" spellcheck="false"></textarea>
+              @if (errors()[source.id + ':json']) { <mat-hint class="mat-text-error">{{ errors()[source.id + ':json'] }}</mat-hint> }
+              @else if (source.kind === 'collection') { <mat-hint>Forms add records with “Save form to collection”.</mat-hint> }
+            </mat-form-field>
+          }
+
+          @if (source.mode === 'query') {
+            <mat-divider />
+            <span class="mat-font-title-sm">Shape the results</span>
+            <span class="mat-font-label-lg">Only rows where</span>
+            <wb-expr-editor [expr]="source.query.filter" purpose="filter" [paths]="rowOptions(source)" [valuePaths]="queryInputs()" (exprChange)="setFilter(source, $event)" />
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Search text</mat-label>
+              <input matInput [value]="source.query.search" (change)="frame(source, { search: $any($event.target).value })" placeholder="{{ '{{fields.search}}' }}">
+              <button matIconButton matSuffix type="button" [matMenuTriggerFor]="searchMenu" aria-label="Insert a value"><mat-icon>add_circle</mat-icon></button>
+            </mat-form-field>
+            <mat-menu #searchMenu="matMenu">
+              @for (option of queryInputs(); track option.path) { <button mat-menu-item (click)="frame(source, { search: '{{' + option.path + '}}' })">{{ option.label }}</button> }
+            </mat-menu>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Search in</mat-label>
+              <mat-select multiple [value]="source.query.searchFields" (selectionChange)="frame(source, { searchFields: $event.value })" placeholder="All fields">
+                @for (key of rawKeys(source); track key) { <mat-option [value]="key">{{ key }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            <div class="ui-row ui-align-center"><span class="mat-font-label-lg ui-grow">Sort</span><button matButton type="button" [disabled]="source.query.sort.length >= 5" (click)="addSort(source)"><mat-icon>add</mat-icon>Sort</button></div>
+            @for (sort of source.query.sort; track $index; let index = $index) {
+              <div class="ui-row ui-gap-2 ui-align-start">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow">
+                  <mat-label>Field</mat-label>
+                  <mat-select [value]="sort.field" (selectionChange)="editSort(source, index, { field: $event.value })">
+                    @for (key of rawKeys(source); track key) { <mat-option [value]="key">{{ key }}</mat-option> }
+                  </mat-select>
+                </mat-form-field>
+                <mat-button-toggle-group [value]="sort.direction" (change)="editSort(source, index, { direction: $event.value })" hideSingleSelectionIndicator aria-label="Direction">
+                  <mat-button-toggle value="asc" aria-label="Ascending"><mat-icon>arrow_upward</mat-icon></mat-button-toggle>
+                  <mat-button-toggle value="desc" aria-label="Descending"><mat-icon>arrow_downward</mat-icon></mat-button-toggle>
+                </mat-button-toggle-group>
+                <button matIconButton type="button" class="wb-icon-button-sm" aria-label="Remove sort" (click)="removeSort(source, index)"><mat-icon>close</mat-icon></button>
+              </div>
+            }
+            <div class="ui-row ui-gap-2">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow">
+                <mat-label>Max rows (0 = all)</mat-label>
+                <input matInput type="number" min="0" max="1000" [value]="source.query.limit" (change)="frame(source, { limit: +$any($event.target).value })">
+              </mat-form-field>
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ui-grow">
+                <mat-label>Keep fields</mat-label>
+                <mat-select multiple [value]="source.query.select" (selectionChange)="frame(source, { select: $event.value })" placeholder="All">
+                  @for (key of rawKeys(source); track key) { <mat-option [value]="key">{{ key }}</mat-option> }
+                </mat-select>
+              </mat-form-field>
+            </div>
+            <mat-expansion-panel class="wb-advanced">
+              <mat-expansion-panel-header><mat-panel-title>Advanced: reshape rows</mat-panel-title></mat-expansion-panel-header>
+              @if (source.query.transform) {
+                <wb-expr-editor [expr]="source.query.transform" purpose="value" [paths]="rowOptions(source)" (exprChange)="setTransform(source, $event)" />
+              } @else {
+                <button matButton type="button" (click)="setTransform(source, { kind: 'rule', rule: { object: [['label', { var: rawKeys(source)[0] ?? 'name' }]] } })"><mat-icon>transform</mat-icon>Add a transform</button>
+              }
+            </mat-expansion-panel>
+            <p class="mat-font-body-sm mat-text-on-surface-variant ui-m-0">
+              @if (rawKeys(source).length) { Fields: {{ rawKeys(source).join(', ') }} } @else { Load the source to see its fields. }
+            </p>
+          }
+          <button matButton type="button" (click)="store.removeSource(source.id)"><mat-icon>delete_outline</mat-icon>Delete data source</button>
+        </div>
+      </mat-expansion-panel>
+    } @empty {
+      <p class="mat-font-body-md mat-text-on-surface-variant ui-m-0">No data sources yet.</p>
+    }
+  </mat-accordion>
+</div>

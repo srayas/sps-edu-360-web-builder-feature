@@ -1,0 +1,24 @@
+{
+  "name": "@spsedu360/json-logic",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Compiled, CSP-safe JSON Logic engine and framed-query executor shared by the web builder and its service.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "tsc -p tsconfig.build.json",
+    "tsc": "tsc -p tsconfig.json --noEmit",
+    "test": "esbuild test/*.spec.ts --bundle --platform=node --format=esm --outdir=.test --out-extension:.js=.mjs --log-level=warning && node --test .test/*.spec.mjs",
+    "bench": "esbuild test/bench.ts --bundle --platform=node --format=esm --outfile=.test/bench.mjs --log-level=warning && node .test/bench.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "json-logic-js": "^2.0.5",
+    "typescript": "~6.0.0"
+  }
+}

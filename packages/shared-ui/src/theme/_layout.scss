@@ -1,0 +1,108 @@
+// Layout system shared by all apps.
+//
+// Material provides color, typography, shape and elevation utilities but no layout primitives, so
+// this file adds a small, token-based set. Spacing follows a 4px scale exposed as CSS variables so
+// a theme can tune rhythm in one place. Templates use these classes instead of component styles
+// or inline `style` attributes.
+@use 'sass:map';
+
+$space: (0: 0, 1: 4px, 2: 8px, 3: 12px, 4: 16px, 5: 24px, 6: 32px, 7: 48px, 8: 64px);
+$widths: (xs: 480px, sm: 640px, md: 960px, lg: 1200px, xl: 1440px);
+
+@mixin layout-classes() {
+  :root {
+    @each $key, $value in $space { --ui-space-#{$key}: #{$value}; }
+    @each $key, $value in $widths { --ui-width-#{$key}: #{$value}; }
+  }
+
+  // Base document rhythm
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--mat-sys-surface);
+    color: var(--mat-sys-on-surface);
+    font: var(--mat-sys-body-medium);
+    -webkit-font-smoothing: antialiased;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  img, video, iframe { max-width: 100%; }
+  a { color: var(--mat-sys-primary); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  // Flex
+  .ui-row { display: flex; flex-direction: row; min-width: 0; }
+  .ui-column { display: flex; flex-direction: column; min-width: 0; }
+  .ui-inline { display: inline-flex; align-items: center; }
+  .ui-wrap { flex-wrap: wrap; }
+  .ui-grow { flex: 1 1 auto; min-width: 0; }
+  .ui-shrink-0 { flex-shrink: 0; }
+  .ui-spacer { flex: 1 1 auto; }
+
+  // Grid that collapses inside narrow containers
+  .ui-grid { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+  @for $i from 1 through 6 {
+    .ui-cols-#{$i} { grid-template-columns: repeat(#{$i}, minmax(0, 1fr)); }
+  }
+  .ui-cols-auto { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .ui-span-all { grid-column: 1 / -1; }
+
+  // Alignment
+  @each $name, $value in (start: flex-start, center: center, end: flex-end, stretch: stretch, baseline: baseline) {
+    .ui-align-#{$name} { align-items: $value; }
+  }
+  @each $name, $value in (start: flex-start, center: center, end: flex-end, between: space-between, around: space-around, evenly: space-evenly) {
+    .ui-justify-#{$name} { justify-content: $value; }
+  }
+  .ui-self-center { align-self: center; }
+  .ui-text-start { text-align: start; }
+  .ui-text-center { text-align: center; }
+  .ui-text-end { text-align: end; }
+
+  // Spacing
+  @each $key, $value in $space {
+    .ui-gap-#{$key} { gap: var(--ui-space-#{$key}); }
+    .ui-p-#{$key} { padding: var(--ui-space-#{$key}); }
+    .ui-px-#{$key} { padding-inline: var(--ui-space-#{$key}); }
+    .ui-py-#{$key} { padding-block: var(--ui-space-#{$key}); }
+    .ui-mb-#{$key} { margin-block-end: var(--ui-space-#{$key}); }
+    .ui-mt-#{$key} { margin-block-start: var(--ui-space-#{$key}); }
+  }
+  .ui-m-0 { margin: 0; }
+  .ui-mx-auto { margin-inline: auto; }
+
+  // Sizing
+  .ui-fill { width: 100%; }
+  .ui-full-height { height: 100%; }
+  .ui-min-0 { min-width: 0; min-height: 0; }
+  .ui-scroll { overflow: auto; min-height: 0; }
+  @each $key, $value in $widths {
+    .ui-max-#{$key} { max-width: var(--ui-width-#{$key}); width: 100%; }
+  }
+
+  // Text helpers
+  .ui-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .ui-break { overflow-wrap: anywhere; }
+  .ui-pre-line { white-space: pre-line; }
+  .ui-visually-hidden {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+
+  // Surfaces built purely from system tokens
+  .ui-outlined { border: 1px solid var(--mat-sys-outline-variant); }
+  .ui-divider-bottom { border-bottom: 1px solid var(--mat-sys-outline-variant); }
+  .ui-divider-top { border-top: 1px solid var(--mat-sys-outline-variant); }
+  .ui-divider-start { border-inline-start: 1px solid var(--mat-sys-outline-variant); }
+  .ui-divider-end { border-inline-end: 1px solid var(--mat-sys-outline-variant); }
+  .ui-dashed { border: 1px dashed var(--mat-sys-outline); }
+
+  // Icon sizes that track the typography scale
+  .ui-icon-sm { font-size: 18px; width: 18px; height: 18px; }
+  .ui-icon-lg { font-size: 40px; width: 40px; height: 40px; }
+  .ui-icon-xl { font-size: 56px; width: 56px; height: 56px; }
+
+  // Responsive visibility (viewport based)
+  @media (max-width: 599.98px) { .ui-hide-mobile { display: none !important; } }
+  @media (max-width: 959.98px) { .ui-hide-tablet { display: none !important; } }
+  @media (min-width: 600px) { .ui-only-mobile { display: none !important; } }
+}

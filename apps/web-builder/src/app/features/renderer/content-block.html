@@ -1,0 +1,132 @@
+@let b = block();
+@switch (b.type) {
+  @case ('heading') {
+    @switch (level()) {
+      @case ('1') { <h1 [class]="classes()">{{ t('text') }}</h1> }
+      @case ('3') { <h3 [class]="classes()">{{ t('text') }}</h3> }
+      @case ('4') { <h4 [class]="classes()">{{ t('text') }}</h4> }
+      @case ('5') { <h5 [class]="classes()">{{ t('text') }}</h5> }
+      @case ('6') { <h6 [class]="classes()">{{ t('text') }}</h6> }
+      @default { <h2 [class]="classes()">{{ t('text') }}</h2> }
+    }
+  }
+  @case ('text') { <p [class]="classes() + ' ui-pre-line'">{{ t('text') }}</p> }
+
+  @case ('image') {
+    @if (media('src'); as src) {
+      <figure [class]="classes() + ' wb-figure'" [class.wb-figure-loading]="!imageLoaded()" [matTooltip]="t('tooltip')" [matTooltipDisabled]="!b.props['tooltip']">
+        <img [src]="src" [alt]="t('alt')" loading="lazy" decoding="async" (load)="imageLoaded.set(true)" (error)="imageLoaded.set(true)" [class]="'wb-image wb-ratio-' + b.props['ratio'] + ' wb-fit-' + b.props['fit']" [class.wb-image-loaded]="imageLoaded()"
+             [class.wb-clickable]="b.actions.length" (click)="activate($event)">
+        @if (b.props['caption']) { <figcaption class="mat-font-body-sm mat-text-on-surface-variant">{{ t('caption') }}</figcaption> }
+      </figure>
+    } @else {
+      <div [class]="classes() + ' wb-placeholder mat-bg-surface-container-high mat-text-on-surface-variant'"><mat-icon>image</mat-icon><span>Add an image URL</span></div>
+    }
+  }
+  @case ('video') {
+    @if (media('src'); as src) {
+      <video [class]="classes() + ' wb-media'" [src]="src" [attr.poster]="media('poster') || null" controls playsinline
+             [muted]="bool('autoplay')" [autoplay]="bool('autoplay') && runtime.mode() !== 'edit'" [loop]="bool('loop')" [attr.aria-label]="t('label')"></video>
+    } @else {
+      <div [class]="classes() + ' wb-placeholder mat-bg-surface-container-high mat-text-on-surface-variant'"><mat-icon>videocam</mat-icon><span>Add a video URL</span></div>
+    }
+  }
+  @case ('audio') {
+    @if (media('src'); as src) { <audio [class]="classes() + ' ui-fill'" [src]="src" controls [attr.aria-label]="t('label')"></audio> }
+    @else { <div [class]="classes() + ' wb-placeholder wb-placeholder-short mat-bg-surface-container-high mat-text-on-surface-variant'"><mat-icon>audiotrack</mat-icon><span>Add an audio URL</span></div> }
+  }
+  @case ('embed') {
+    @if (embedUrl(); as url) {
+      <iframe [class]="classes() + ' wb-embed wb-ratio-' + b.props['ratio']" [src]="url" [title]="t('title')" loading="lazy"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-presentation" referrerpolicy="no-referrer" allowfullscreen></iframe>
+    } @else {
+      <div [class]="classes() + ' wb-placeholder mat-bg-surface-container-high mat-text-on-surface-variant'"><mat-icon>code_blocks</mat-icon><span>Add an https:// embed URL</span></div>
+    }
+  }
+
+  @case ('button') {
+    @switch (b.props['variant']) {
+      @case ('icon') {
+        <button matIconButton [type]="$any(b.props['htmlType'])" [class]="classes()" [disabled]="bool('disabled')" [attr.aria-label]="t('text')"
+                [matTooltip]="t('tooltip') || t('text')" (click)="activate($event)"><mat-icon>{{ b.props['icon'] || 'star' }}</mat-icon></button>
+      }
+      @case ('fab') {
+        <button matFab [type]="$any(b.props['htmlType'])" [class]="classes()" [disabled]="bool('disabled')" [attr.aria-label]="t('text')"
+                [matTooltip]="t('tooltip') || t('text')" (click)="activate($event)"><mat-icon>{{ b.props['icon'] || 'add' }}</mat-icon></button>
+      }
+      @case ('mini-fab') {
+        <button matMiniFab [type]="$any(b.props['htmlType'])" [class]="classes()" [disabled]="bool('disabled')" [attr.aria-label]="t('text')"
+                [matTooltip]="t('tooltip') || t('text')" (click)="activate($event)"><mat-icon>{{ b.props['icon'] || 'add' }}</mat-icon></button>
+      }
+      @case ('extended-fab') {
+        <button matFab extended [type]="$any(b.props['htmlType'])" [class]="classes()" [disabled]="bool('disabled')"
+                [matTooltip]="t('tooltip')" [matTooltipDisabled]="!b.props['tooltip']" (click)="activate($event)">
+          <mat-icon>{{ b.props['icon'] || 'add' }}</mat-icon>{{ t('text') }}
+        </button>
+      }
+      @default {
+        @if (href(); as url) {
+          <a [matButton]="appearance() || 'filled'" [href]="url" [class]="classes()" [matTooltip]="t('tooltip')" [matTooltipDisabled]="!b.props['tooltip']" (click)="activate($event)">
+            @if (b.props['icon']) { <mat-icon>{{ b.props['icon'] }}</mat-icon> }{{ t('text') }}
+          </a>
+        } @else {
+          <button [matButton]="appearance() || 'filled'" [type]="$any(b.props['htmlType'])" [class]="classes()" [disabled]="bool('disabled')"
+                  [matTooltip]="t('tooltip')" [matTooltipDisabled]="!b.props['tooltip']" (click)="activate($event)">
+            @if (b.props['icon']) { <mat-icon>{{ b.props['icon'] }}</mat-icon> }{{ t('text') }}
+          </button>
+        }
+      }
+    }
+  }
+
+  @case ('link') {
+    <a [class]="classes()" [href]="href() || '#'" [attr.target]="bool('newTab') ? '_blank' : null" [attr.rel]="bool('newTab') ? 'noopener' : null" (click)="activate($event)">{{ t('text') }}</a>
+  }
+  @case ('icon') {
+    <mat-icon [class]="classes() + ' wb-icon-' + b.props['size']" [class.wb-clickable]="b.actions.length" [attr.aria-label]="t('label') || null" [attr.aria-hidden]="b.props['label'] ? null : 'true'"
+              [matTooltip]="t('tooltip')" [matTooltipDisabled]="!b.props['tooltip']" (click)="activate($event)">{{ b.props['icon'] }}</mat-icon>
+  }
+  @case ('list') {
+    @if (bool('ordered')) { <ol [class]="classes() + ' wb-list'">@for (item of items(); track $index) { <li>{{ item }}</li> }</ol> }
+    @else { <ul [class]="classes() + ' wb-list'">@for (item of items(); track $index) { <li>{{ item }}</li> }</ul> }
+  }
+  @case ('quote') {
+    <figure [class]="classes() + ' wb-quote'">
+      <blockquote class="ui-m-0">{{ t('text') }}</blockquote>
+      @if (b.props['cite']) { <figcaption class="mat-font-body-md mat-text-on-surface-variant">— {{ t('cite') }}</figcaption> }
+    </figure>
+  }
+  @case ('code') { <pre [class]="classes() + ' wb-code mat-bg-surface-container-high mat-text-on-surface mat-corner-md ui-p-4'"><code>{{ t('text') }}</code></pre> }
+  @case ('chips') {
+    @if (bool('selectable')) {
+      <mat-chip-listbox [class]="classes()" [attr.aria-label]="b.name" multiple>@for (chip of items(); track $index) { <mat-chip-option>{{ chip }}</mat-chip-option> }</mat-chip-listbox>
+    } @else {
+      <mat-chip-set [class]="classes()" [attr.aria-label]="b.name">@for (chip of items(); track $index) { <mat-chip>{{ chip }}</mat-chip> }</mat-chip-set>
+    }
+  }
+  @case ('avatar') {
+    <div [class]="classes() + ' ui-row ui-align-center ui-gap-3'">
+      @if (media('src'); as src) { <img [class]="'wb-avatar wb-avatar-' + b.props['size']" [src]="src" alt="" loading="lazy"> }
+      @else { <span [class]="'wb-avatar wb-avatar-' + b.props['size'] + ' mat-bg-primary-container mat-text-on-primary-container mat-font-title-md'" aria-hidden="true">{{ initials() }}</span> }
+      <span class="ui-column ui-min-0">
+        <span class="mat-font-title-sm ui-truncate">{{ t('name') }}</span>
+        @if (b.props['caption']) { <span class="mat-font-body-sm mat-text-on-surface-variant ui-truncate">{{ t('caption') }}</span> }
+      </span>
+    </div>
+  }
+  @case ('divider') { <mat-divider [class]="classes()" [inset]="bool('inset')" /> }
+  @case ('spacer') { <div [class]="classes() + ' wb-spacer-' + b.props['size']" aria-hidden="true"></div> }
+  @case ('badge') { <span [class]="classes() + ' wb-badge mat-font-label-md mat-corner-sm ' + badgeTone()">{{ t('text') }}</span> }
+  @case ('alert') {
+    @if (!dismissed()) {
+      <div [class]="classes() + ' wb-alert wb-alert-' + b.props['severity'] + ' ui-row ui-align-start ui-gap-3 ui-p-4 mat-corner-md'" [attr.role]="b.props['severity'] === 'error' ? 'alert' : 'status'">
+        <mat-icon aria-hidden="true">{{ b.props['severity'] === 'success' ? 'check_circle' : b.props['severity'] === 'warning' ? 'warning' : b.props['severity'] === 'error' ? 'error' : 'info' }}</mat-icon>
+        <div class="ui-column ui-gap-1 ui-grow">
+          @if (b.props['title']) { <span class="mat-font-title-sm">{{ t('title') }}</span> }
+          <span class="mat-font-body-md ui-pre-line">{{ t('text') }}</span>
+        </div>
+        @if (bool('dismissible')) { <button matIconButton type="button" aria-label="Dismiss" (click)="dismissed.set(runtime.mode() !== 'edit')"><mat-icon>close</mat-icon></button> }
+      </div>
+    }
+  }
+}

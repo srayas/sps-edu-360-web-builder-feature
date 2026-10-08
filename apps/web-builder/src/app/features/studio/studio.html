@@ -1,0 +1,100 @@
+@let project = store.project();
+<div class="wb-studio ui-column">
+  <mat-toolbar class="wb-studio-bar ui-divider-bottom ui-gap-1">
+    <a matIconButton routerLink="/projects" matTooltip="All projects" aria-label="Back to projects"><mat-icon>arrow_back</mat-icon></a>
+    @if (compact() && !store.preview()) {
+      <button matIconButton type="button" matTooltip="Panels" aria-label="Toggle panels" (click)="leftOpen.set(!leftOpen())"><mat-icon>left_panel_open</mat-icon></button>
+    }
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="wb-project-name">
+      <input matInput aria-label="Project name" [value]="project.name" (input)="store.renameProject($any($event.target).value)">
+    </mat-form-field>
+    <span class="mat-font-label-md mat-text-on-surface-variant ui-hide-tablet ui-truncate" [class.mat-text-error]="store.saveState() === 'error'" role="status">{{ saveLabel() }}</span>
+    <span class="ui-spacer"></span>
+
+    <button matIconButton type="button" matTooltip="Undo (Ctrl+Z)" aria-label="Undo" [disabled]="!store.history().length" (click)="store.undo()"><mat-icon>undo</mat-icon></button>
+    <button matIconButton type="button" matTooltip="Redo (Ctrl+Shift+Z)" aria-label="Redo" [disabled]="!store.future().length" (click)="store.redo()"><mat-icon>redo</mat-icon></button>
+    <mat-button-toggle-group class="ui-hide-mobile" aria-label="Preview size" [value]="store.viewport()" (change)="store.viewport.set($event.value)" hideSingleSelectionIndicator>
+      <mat-button-toggle value="desktop" matTooltip="Desktop" aria-label="Desktop"><mat-icon>desktop_windows</mat-icon></mat-button-toggle>
+      <mat-button-toggle value="tablet" matTooltip="Tablet" aria-label="Tablet"><mat-icon>tablet_mac</mat-icon></mat-button-toggle>
+      <mat-button-toggle value="mobile" matTooltip="Mobile" aria-label="Mobile"><mat-icon>phone_iphone</mat-icon></mat-button-toggle>
+    </mat-button-toggle-group>
+    <button [matButton]="store.preview() ? 'tonal' : 'text'" type="button" (click)="togglePreview()" [matTooltip]="store.preview() ? 'Back to editing (Esc)' : 'Try the app: actions, forms and data run'">
+      <mat-icon>{{ store.preview() ? 'edit' : 'play_arrow' }}</mat-icon><span class="ui-hide-mobile">{{ store.preview() ? 'Edit' : 'Preview' }}</span>
+    </button>
+    <button matIconButton type="button" [matMenuTriggerFor]="more" aria-label="More options" matTooltip="Save, export and import"><mat-icon>more_vert</mat-icon></button>
+    <mat-menu #more="matMenu">
+      <button mat-menu-item (click)="save()"><mat-icon>save</mat-icon><span>Save now</span></button>
+      <button mat-menu-item (click)="openPublished()"><mat-icon>open_in_new</mat-icon><span>Open published app</span></button>
+      <mat-divider />
+      <button mat-menu-item (click)="exportHtml()"><mat-icon>html</mat-icon><span>Export page as HTML</span></button>
+      <button mat-menu-item (click)="exportJson()"><mat-icon>data_object</mat-icon><span>Export project JSON</span></button>
+      <button mat-menu-item (click)="fileInput.click()"><mat-icon>upload_file</mat-icon><span>Import project JSON</span></button>
+    </mat-menu>
+    <input #fileInput type="file" accept="application/json,.json" class="ui-visually-hidden" (change)="importJson($event)" aria-hidden="true" tabindex="-1">
+    <ui-theme-switcher />
+    <button matButton="filled" type="button" (click)="publish()"><mat-icon>rocket_launch</mat-icon>Publish</button>
+  </mat-toolbar>
+  @if (loading()) {
+    <div class="wb-studio-loading ui-fade-in" aria-busy="true" aria-label="Loading the studio">
+      <div class="ui-p-3"><ui-skeleton shape="panel" /></div>
+      <div class="ui-p-5"><ui-skeleton shape="page" /></div>
+      <div class="ui-p-3"><ui-skeleton shape="panel" /></div>
+    </div>
+  } @else if (notFound()) {
+    <div class="ui-column ui-align-center ui-gap-3 ui-p-7">
+      <mat-icon class="ui-icon-xl mat-text-on-surface-variant">search_off</mat-icon>
+      <h1 class="mat-font-headline-sm ui-m-0">Project not found</h1>
+      <a matButton="filled" routerLink="/projects">Back to projects</a>
+    </div>
+  } @else {
+    <mat-sidenav-container class="wb-studio-body ui-grow">
+      <mat-sidenav class="wb-panel wb-panel-left" position="start" [mode]="compact() ? 'over' : 'side'"
+                   [opened]="leftOpen() && !store.preview()" (openedChange)="leftOpen.set($event)" [autoFocus]="false">
+        <mat-tab-group class="wb-panel-tabs wb-icon-tabs ui-full-height" [selectedIndex]="leftTabIndex()" (selectedIndexChange)="selectTab($event)" mat-stretch-tabs animationDuration="0ms">
+          <mat-tab aria-label="Add blocks">
+            <ng-template mat-tab-label><span class="ui-column ui-align-center"><mat-icon>add_box</mat-icon><span class="mat-font-label-sm">Add</span></span></ng-template>
+            <ng-template matTabContent><wb-library-panel /></ng-template>
+          </mat-tab>
+          <mat-tab aria-label="Layers">
+            <ng-template mat-tab-label><span class="ui-column ui-align-center"><mat-icon>layers</mat-icon><span class="mat-font-label-sm">Layers</span></span></ng-template>
+            <ng-template matTabContent><wb-layers-panel /></ng-template>
+          </mat-tab>
+          <mat-tab aria-label="Pages">
+            <ng-template mat-tab-label><span class="ui-column ui-align-center"><mat-icon>description</mat-icon><span class="mat-font-label-sm">Pages</span></span></ng-template>
+            <ng-template matTabContent><wb-pages-panel /></ng-template>
+          </mat-tab>
+          <mat-tab aria-label="Logic rules">
+            <ng-template mat-tab-label><span class="ui-column ui-align-center"><mat-icon>account_tree</mat-icon><span class="mat-font-label-sm">Logic</span></span></ng-template>
+            <ng-template matTabContent><wb-rules-panel /></ng-template>
+          </mat-tab>
+          <mat-tab aria-label="Data">
+            <ng-template mat-tab-label><span class="ui-column ui-align-center"><mat-icon>database</mat-icon><span class="mat-font-label-sm">Data</span></span></ng-template>
+            <ng-template matTabContent><wb-data-panel /></ng-template>
+          </mat-tab>
+          <mat-tab aria-label="Theme">
+            <ng-template mat-tab-label><span class="ui-column ui-align-center"><mat-icon>palette</mat-icon><span class="mat-font-label-sm">Theme</span></span></ng-template>
+            <ng-template matTabContent><wb-theme-panel /></ng-template>
+          </mat-tab>
+        </mat-tab-group>
+      </mat-sidenav>
+
+      <mat-sidenav class="wb-panel wb-panel-right" position="end" [mode]="compact() ? 'over' : 'side'"
+                   [opened]="rightOpen() && !store.preview()" (openedChange)="rightOpen.set($event)" [autoFocus]="false">
+        <wb-inspector />
+      </mat-sidenav>
+
+      <mat-sidenav-content class="wb-canvas-area" (click)="store.selectedId.set('')">
+        <div class="wb-canvas-caption ui-row ui-align-center ui-gap-2 mat-font-label-md mat-text-on-surface-variant">
+          <mat-icon class="ui-icon-sm">description</mat-icon>
+          <span class="ui-truncate">{{ store.page().name }} · /{{ store.page().slug }}</span>
+          <span class="ui-spacer"></span>
+          @if (store.preview()) { <span class="wb-preview-chip wb-bg-tertiary-container mat-corner-full ui-px-3 ui-py-1">Preview — interactions are live</span> }
+          @else { <span>{{ store.viewport() }}</span> }
+        </div>
+        <div [class]="'wb-canvas wb-viewport-' + store.viewport()" [class.wb-canvas-preview]="store.preview()">
+          <wb-site-frame />
+        </div>
+      </mat-sidenav-content>
+    </mat-sidenav-container>
+  }
+</div>

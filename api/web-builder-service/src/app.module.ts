@@ -1,10 +1,9 @@
 import { MiddlewareConsumer, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { WebBuilderModule } from './web-builder/web-builder.module';
-import {
-  ApiMiddleware,
-  CustomLogger,
-} from '@spsedu360/common-be-config';
+import { ProjectsModule } from './projects/projects.module';
+import { RuntimeModule } from './runtime/runtime.module';
+import { ApiMiddleware, CustomLogger } from '@spsedu360/common-be-config';
 
 @Module({
   imports: [
@@ -12,6 +11,8 @@ import {
       isGlobal: true,
     }),
     WebBuilderModule,
+    ProjectsModule,
+    RuntimeModule,
   ],
   controllers: [],
   providers: [CustomLogger],

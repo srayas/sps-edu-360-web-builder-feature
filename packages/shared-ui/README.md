@@ -1,50 +1,40 @@
-# React + TypeScript + Vite
+# @spsedu360/shared-ui
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Angular Material 3 theme, layout system and application shell shared by spsEdu360 Angular apps.
 
-Currently, two official plugins are available:
+## Theme
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```scss
+@use '@angular/material' as mat;
+@use '@spsedu360/shared-ui/src/theme' as ui;
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
-
-- Configure the top-level `parserOptions` property like this:
-
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+@include ui.all((
+  primary: mat.$azure-palette,
+  tertiary: mat.$violet-palette,
+  font: ('Public Sans', Roboto, sans-serif),
+  density: 0,
+));
 ```
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+`ui.all` emits:
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
+* the Material system tokens (`mat.theme`) with light/dark switching through `color-scheme` (the theme switcher sets `light-theme` or `dark-theme` on `<html>`),
+* Material's system utility classes: `mat-bg-*`, `mat-text-*`, `mat-font-*`, `mat-corner-*`, `mat-shadow-*`, `mat-border*`,
+* the `ui-*` layout classes in `src/theme/_layout.scss` (flex, grid, gap, padding, alignment, widths, truncation, responsive visibility),
+* the shell classes.
 
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
-```
+Components in this workspace do not ship their own CSS or inline styles; they compose these classes and Angular Material components.
+
+## Components
+
+| Selector | Purpose |
+| --- | --- |
+| `ui-app-shell` | Side navigation, top bar and content area (configure through `ShellService`) |
+| `ui-nav-bar` | Top bar with menu toggle, breadcrumbs, search and theme switcher |
+| `ui-breadcrumbs` | Breadcrumb trail |
+| `ui-search-bar` | Material search field (`[(value)]`) |
+| `ui-theme-switcher` | Light / dark / system menu (`ThemeService`) |
+| `ui-team-switcher` | Team menu |
+| `ui-page-header` | Page title, description and actions |
+| `ui-empty-state` | Icon, heading, message and actions |
+| `ConfirmService` | Promise-based Material confirm dialog |
