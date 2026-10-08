@@ -1,0 +1,43 @@
+{
+  "name": "@spsedu360/user-entity",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "tsc": "tsc",
+    "dev": "tsc",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@spsedu360/user-entity": "file:",
+    "class-transformer": "*",
+    "class-validator": "*",
+    "prisma-class-validator-generator": "^5.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/swagger": "^11.0.3",
+    "@prisma/client": "^6.3.1",
+    "@types/node": "^22.13.4",
+    "@types/validator": "^13.12.2",
+    "prisma": "^6.3.1"
+  },
+  "peerDependencies": {
+    "class-transformer": "*",
+    "class-validator": "*"
+  },
+  "peerDependenciesMeta": {
+    "class-transformer": {
+      "optional": true
+    },
+    "class-validator": {
+      "optional": true
+    }
+  }
+}

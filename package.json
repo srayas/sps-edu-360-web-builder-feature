@@ -1,0 +1,30 @@
+{
+  "name": "spsedu360",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "pnpm exec nx run-many -t build",
+    "format": "prettier  \"{apps,api,libs,packages}/**/*.{ts,tsx,js,json,mjs}\" --ignore-path .gitignore",
+    "format:check": "pnpm format --check",
+    "format:write": "pnpm format --write",
+    "lint": "pnpm exec nx run-many -t lint",
+    "tsc": "pnpm exec nx run-many -t tsc",
+    "validate": "pnpm format:write && pnpm tsc && pnpm lint",
+    "prepare": "husky"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@nx/angular": "^20.4.6",
+    "spsedu360": "file:"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "nx": "^20.4.4",
+    "prettier": "^3.5.1",
+    "userland": "^0.4.3"
+  }
+}
