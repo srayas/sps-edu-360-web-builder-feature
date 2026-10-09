@@ -1978,6 +1978,8 @@ export interface ResolvedRefs {
   variables: Record<string, string>
   firstPageId: string
   workflows?: Record<string, string>
+  /** Page ids by page name, for `@page:Name`. */
+  pages?: Record<string, string>
 }
 
 function resolve(value: string, refs: ResolvedRefs): string {
@@ -1988,6 +1990,7 @@ function resolve(value: string, refs: ResolvedRefs): string {
       (_, name: string) => refs.variables[name] ?? '',
     )
     .replace(/^@page:first$/, refs.firstPageId)
+    .replace(/^@page:(.+)$/, (_, name: string) => refs.pages?.[name] ?? '')
     .replace(
       /^@workflow:(.+)$/,
       (_, name: string) => refs.workflows?.[name] ?? '',
@@ -1995,7 +1998,7 @@ function resolve(value: string, refs: ResolvedRefs): string {
 }
 
 /** Instantiates template nodes with fresh ids, resolving template references. */
-function templateAction(
+export function templateAction(
   step: TemplateAction,
   trigger: Trigger,
   refs: ResolvedRefs,
@@ -2149,6 +2152,9 @@ export function mergeTemplateData(
     variables,
     firstPageId: project.pages[0]?.id ?? '',
     workflows: {},
+    pages: Object.fromEntries(
+      project.pages.map((page) => [page.name, page.id]),
+    ),
   }
   for (const workflow of template.workflows ?? []) {
     const existing = (project.workflows ?? []).find(

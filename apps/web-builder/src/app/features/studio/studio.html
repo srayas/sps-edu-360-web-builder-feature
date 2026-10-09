@@ -21,6 +21,7 @@
     <button [matButton]="store.preview() ? 'tonal' : 'text'" type="button" (click)="togglePreview()" [matTooltip]="store.preview() ? 'Back to editing (Esc)' : 'Try the app: actions, forms and data run'">
       <mat-icon>{{ store.preview() ? 'edit' : 'play_arrow' }}</mat-icon><span class="ui-hide-mobile">{{ store.preview() ? 'Edit' : 'Preview' }}</span>
     </button>
+    <button matIconButton type="button" matTooltip="Import from AI / JSON" aria-label="Import from AI or JSON" (click)="openImport()"><mat-icon>auto_awesome</mat-icon></button>
     <button matIconButton type="button" [matMenuTriggerFor]="more" aria-label="More options" matTooltip="Save, export and import"><mat-icon>more_vert</mat-icon></button>
     <mat-menu #more="matMenu">
       <button mat-menu-item (click)="save()"><mat-icon>save</mat-icon><span>Save now</span></button>
@@ -29,6 +30,10 @@
       <button mat-menu-item (click)="exportHtml()"><mat-icon>html</mat-icon><span>Export page as HTML</span></button>
       <button mat-menu-item (click)="exportJson()"><mat-icon>data_object</mat-icon><span>Export project JSON</span></button>
       <button mat-menu-item (click)="fileInput.click()"><mat-icon>upload_file</mat-icon><span>Import project JSON</span></button>
+      <mat-divider />
+      <button mat-menu-item (click)="openImport()"><mat-icon>auto_awesome</mat-icon><span>Import from AI / JSON…</span></button>
+      <button mat-menu-item (click)="copyPageSpec()"><mat-icon>content_copy</mat-icon><span>Copy page as JSON (for AI)</span></button>
+      <button mat-menu-item (click)="downloadPageSpec()"><mat-icon>file_download</mat-icon><span>Download page JSON</span></button>
     </mat-menu>
     <input #fileInput type="file" accept="application/json,.json" class="ui-visually-hidden" (change)="importJson($event)" aria-hidden="true" tabindex="-1">
     <ui-theme-switcher />

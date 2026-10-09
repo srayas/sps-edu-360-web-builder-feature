@@ -1,0 +1,269 @@
+{
+  "format": "web-builder/page@1",
+  "name": "Contact",
+  "path": "contact",
+  "theme": {
+    "primary": "iris",
+    "headingFont": "Geist",
+    "bodyFont": "Geist",
+    "radius": "medium"
+  },
+  "blocks": [
+    {
+      "type": "toolbar",
+      "props": {
+        "title": "Acme",
+        "icon": "bolt"
+      },
+      "children": [
+        {
+          "type": "nav",
+          "props": {
+            "usePages": true
+          }
+        },
+        {
+          "type": "button",
+          "props": {
+            "text": "Sign in",
+            "variant": "tonal"
+          },
+          "actions": [
+            [
+              "click",
+              "navigate",
+              "@page:first"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "props": {
+        "padding": "8",
+        "surface": "glow"
+      },
+      "children": [
+        {
+          "type": "container",
+          "props": {
+            "width": "lg",
+            "gap": "4",
+            "align": "center"
+          },
+          "children": [
+            {
+              "type": "badge",
+              "props": {
+                "text": "We reply within a day"
+              }
+            },
+            {
+              "type": "heading",
+              "props": {
+                "text": "Talk to our team",
+                "level": "1",
+                "variant": "display-sm",
+                "textAlign": "center"
+              }
+            },
+            {
+              "type": "text",
+              "props": {
+                "text": "Questions about plans, pricing or a demo? Send us a note.",
+                "tone": "muted",
+                "textAlign": "center"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "props": {
+        "padding": "7"
+      },
+      "children": [
+        {
+          "type": "container",
+          "props": {
+            "width": "lg",
+            "gap": "6"
+          },
+          "children": [
+            {
+              "type": "grid",
+              "props": {
+                "columns": "3",
+                "tabletColumns": "3",
+                "mobileColumns": "1",
+                "gap": "4"
+              },
+              "children": [
+                {
+                  "type": "stat",
+                  "props": {
+                    "label": "Customers",
+                    "value": "2,400+",
+                    "icon": "groups"
+                  }
+                },
+                {
+                  "type": "stat",
+                  "props": {
+                    "label": "Uptime",
+                    "value": "99.99%",
+                    "icon": "monitoring"
+                  }
+                },
+                {
+                  "type": "stat",
+                  "props": {
+                    "label": "Median reply",
+                    "value": "3 h",
+                    "icon": "schedule"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "props": {
+                "title": "Send a message",
+                "appearance": "outlined"
+              },
+              "children": [
+                {
+                  "type": "form",
+                  "name": "Contact form",
+                  "props": {
+                    "gap": "3"
+                  },
+                  "children": [
+                    {
+                      "type": "input",
+                      "props": {
+                        "label": "Full name",
+                        "field": "name",
+                        "required": true
+                      },
+                      "validations": [
+                        {
+                          "kind": "letters",
+                          "message": "Use letters only."
+                        }
+                      ]
+                    },
+                    {
+                      "type": "input",
+                      "props": {
+                        "label": "Work email",
+                        "field": "email",
+                        "inputType": "email",
+                        "required": true
+                      },
+                      "validations": [
+                        {
+                          "kind": "email"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "select",
+                      "props": {
+                        "label": "Topic",
+                        "field": "topic",
+                        "items": "Sales\nSupport\nPartnerships"
+                      }
+                    },
+                    {
+                      "type": "textarea",
+                      "props": {
+                        "label": "Message",
+                        "field": "message",
+                        "rows": 4,
+                        "required": true
+                      },
+                      "validations": [
+                        {
+                          "kind": "minLength",
+                          "value": "20",
+                          "message": "Tell us a little more (20+ characters)."
+                        }
+                      ]
+                    },
+                    {
+                      "type": "button",
+                      "props": {
+                        "text": "Send",
+                        "variant": "filled",
+                        "htmlType": "submit",
+                        "icon": "send"
+                      }
+                    }
+                  ],
+                  "actions": [
+                    {
+                      "trigger": "submit",
+                      "type": "submitForm",
+                      "target": "https://api.example.com/contact",
+                      "value": "POST",
+                      "onSuccess": [
+                        {
+                          "type": "openDialog",
+                          "target": "@block:Thanks"
+                        }
+                      ],
+                      "onError": [
+                        {
+                          "type": "showMessage",
+                          "value": "{{error.message}}",
+                          "options": {
+                            "severity": "error",
+                            "title": "Could not send"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "dialog",
+      "name": "Thanks",
+      "props": {
+        "title": "Message sent",
+        "presentation": "dialog",
+        "size": "sm"
+      },
+      "children": [
+        {
+          "type": "text",
+          "props": {
+            "text": "Thanks {{form.name}} — we will reply to {{form.email}} soon."
+          }
+        },
+        {
+          "type": "button",
+          "props": {
+            "text": "Close",
+            "variant": "filled"
+          },
+          "actions": [
+            [
+              "click",
+              "closeDialog"
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

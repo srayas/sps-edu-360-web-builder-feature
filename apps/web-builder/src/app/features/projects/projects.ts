@@ -68,6 +68,9 @@ import { ProjectRepository } from '../../core/persistence/project-repository'
           <button mat-menu-item (click)="createApp()">
             <mat-icon>note_add</mat-icon><span>Blank app</span>
           </button>
+          <button mat-menu-item (click)="createApp(undefined, true)">
+            <mat-icon>auto_awesome</mat-icon><span>From AI / JSON…</span>
+          </button>
           <mat-divider />
           @for (template of templates; track template.id) {
             <button mat-menu-item (click)="createApp(template)">
@@ -235,7 +238,7 @@ export class Projects {
     }
   }
 
-  async createApp(template?: Template): Promise<void> {
+  async createApp(template?: Template, fromAi = false): Promise<void> {
     const project = createProject(
       template ? template.name.replace(/ page$/i, '') : 'Untitled app',
     )
@@ -248,7 +251,7 @@ export class Projects {
         (node) => node.type === 'toolbar',
       )
     }
-    await this.persist(project)
+    await this.persist(project, fromAi ? { import: 'ai' } : undefined)
   }
 
   async duplicate(summary: ProjectSummary): Promise<void> {
@@ -309,10 +312,11 @@ export class Projects {
 
   private async persist(
     project: Parameters<ProjectRepository['save']>[0],
+    queryParams?: Record<string, string>,
   ): Promise<void> {
     try {
       const saved = await this.repository.save(project)
-      await this.router.navigate(['/builder', saved.id])
+      await this.router.navigate(['/builder', saved.id], { queryParams })
     } catch (error) {
       this.snack.open(
         error instanceof Error

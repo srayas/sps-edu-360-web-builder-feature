@@ -1,0 +1,174 @@
+{
+  "format": "web-builder/page@1",
+  "name": "Team dashboard",
+  "path": "dashboard",
+  "theme": { "primary": "ocean", "tertiary": "sunset", "headingFont": "Geist", "bodyFont": "Inter", "radius": "medium", "mode": "system" },
+  "blocks": [
+    {
+      "type": "toolbar",
+      "props": { "title": "Northwind", "icon": "hub", "sticky": true },
+      "children": [
+        { "type": "nav", "props": { "usePages": false, "items": "Overview|#overview\nTasks|#tasks\nReports|#reports", "variant": "tonal" } },
+        { "type": "avatar", "props": { "name": "Priya Nair", "size": "sm" } }
+      ]
+    },
+    {
+      "type": "section",
+      "props": { "padding": "6", "anchor": "overview" },
+      "children": [
+        {
+          "type": "container",
+          "props": { "width": "xl", "gap": "5" },
+          "children": [
+            {
+              "type": "row",
+              "props": { "justify": "between", "align": "center", "wrap": true, "gap": "3" },
+              "children": [
+                {
+                  "type": "stack",
+                  "props": { "gap": "1" },
+                  "children": [
+                    { "type": "heading", "props": { "text": "Good morning, Priya", "level": "1", "variant": "headline-lg" } },
+                    { "type": "text", "props": { "text": "Here is what your team shipped this week.", "tone": "muted" } }
+                  ]
+                },
+                {
+                  "type": "button",
+                  "props": { "text": "New task", "variant": "filled", "icon": "add" },
+                  "actions": [["click", "openDialog", "@block:New task"]]
+                }
+              ]
+            },
+            {
+              "type": "grid",
+              "props": { "columns": "4", "tabletColumns": "2", "mobileColumns": "1", "gap": "4" },
+              "children": [
+                { "type": "stat", "props": { "label": "Open tasks", "value": "{{data.tasks.length}}", "icon": "checklist", "appearance": "outlined" } },
+                { "type": "stat", "props": { "label": "Completed", "value": "128", "trend": "+12% vs last week", "trendTone": "primary", "icon": "task_alt", "appearance": "outlined" } },
+                { "type": "stat", "props": { "label": "Cycle time", "value": "2.4 d", "trend": "-0.3 d", "trendTone": "primary", "icon": "timer", "appearance": "outlined" } },
+                { "type": "stat", "props": { "label": "Blocked", "value": "3", "trend": "Needs attention", "trendTone": "error", "icon": "block", "appearance": "outlined" } }
+              ]
+            },
+            {
+              "type": "grid",
+              "props": { "columns": "3", "tabletColumns": "1", "mobileColumns": "1", "gap": "4" },
+              "children": [
+                {
+                  "type": "card",
+                  "props": { "title": "Throughput", "subtitle": "Tasks closed per week", "appearance": "outlined" },
+                  "children": [
+                    { "type": "chart", "props": { "chartType": "bar", "items": "W1|18\nW2|24\nW3|21\nW4|30\nW5|27\nW6|34" } }
+                  ]
+                },
+                {
+                  "type": "card",
+                  "props": { "title": "Sprint goal", "subtitle": "Payments v2", "appearance": "outlined" },
+                  "children": [
+                    { "type": "progress", "props": { "label": "68% complete", "value": "68" } },
+                    { "type": "list", "props": { "items": "Card vault migration\nRetry webhooks\nRefund flow", "variant": "body-md" } }
+                  ]
+                },
+                {
+                  "type": "card",
+                  "props": { "title": "Heads-up", "appearance": "outlined" },
+                  "children": [
+                    { "type": "alert", "props": { "title": "Release freeze Friday", "text": "Merge before Thursday 18:00 to make the release.", "severity": "warning" } }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "props": { "padding": "6", "anchor": "tasks", "surface": "surface-container-low" },
+      "children": [
+        {
+          "type": "container",
+          "props": { "width": "xl", "gap": "4" },
+          "children": [
+            { "type": "heading", "props": { "text": "Tasks", "level": "2", "variant": "headline-sm" } },
+            {
+              "type": "table",
+              "name": "Tasks table",
+              "props": { "source": "@source:tasks", "filter": true, "paginate": true, "pageSize": 10, "sortable": true },
+              "table": {
+                "columns": [
+                  { "id": "title", "field": "title", "header": "Task" },
+                  { "id": "owner", "field": "owner", "header": "Owner", "format": "avatar" },
+                  {
+                    "id": "status", "field": "status", "header": "Status", "format": "badge",
+                    "tones": [
+                      { "tone": "success", "when": { "kind": "rule", "rule": { "==": [{ "var": "row.status" }, "Done"] } } },
+                      { "tone": "info", "when": { "kind": "rule", "rule": { "==": [{ "var": "row.status" }, "In progress"] } } },
+                      { "tone": "error", "when": { "kind": "rule", "rule": { "==": [{ "var": "row.status" }, "Blocked"] } } }
+                    ]
+                  },
+                  { "id": "priority", "field": "priority", "header": "Priority", "cell": "select", "options": "Low\nMedium\nHigh", "autoSave": true,
+                    "onChange": [{ "type": "showMessage", "value": "Priority of “{{row.title}}” set to {{value}}.", "options": { "severity": "success" } }] },
+                  { "id": "due", "field": "due", "header": "Due", "format": "date" },
+                  { "id": "progress", "field": "progress", "header": "Progress", "format": "progress" }
+                ],
+                "rowActions": [
+                  {
+                    "label": "Delete", "icon": "delete", "display": "icon", "danger": true,
+                    "actions": [{
+                      "type": "confirm", "value": "Delete “{{row.title}}”?", "options": { "title": "Delete task", "confirmLabel": "Delete", "danger": "true" },
+                      "onSuccess": [
+                        { "type": "deleteRecord", "target": "@source:tasks", "value": "{{row.id}}" },
+                        { "type": "showMessage", "value": "Task deleted.", "options": { "severity": "info" } }
+                      ]
+                    }]
+                  }
+                ],
+                "rowTones": [{ "tone": "error", "when": { "kind": "rule", "rule": { "==": [{ "var": "row.status" }, "Blocked"] } } }],
+                "emptyText": "No tasks yet — create one with New task."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "dialog",
+      "name": "New task",
+      "props": { "title": "New task", "subtitle": "Add it to the team board", "presentation": "side", "size": "sm" },
+      "children": [
+        {
+          "type": "form",
+          "props": { "gap": "3" },
+          "children": [
+            { "type": "input", "props": { "label": "Title", "field": "title", "required": true }, "validations": [{ "kind": "minLength", "value": "3", "message": "Use at least 3 characters." }] },
+            { "type": "select", "props": { "label": "Owner", "field": "owner", "items": "Priya Nair\nMarco Rossi\nAiko Tanaka", "required": true } },
+            { "type": "toggle-group", "props": { "label": "Priority", "field": "priority", "items": "Low\nMedium\nHigh", "defaultValue": "Medium" } },
+            { "type": "datepicker", "props": { "label": "Due date", "field": "due", "required": true } },
+            { "type": "button", "props": { "text": "Create task", "variant": "filled", "htmlType": "submit", "icon": "check", "fullWidth": true } }
+          ],
+          "actions": [{
+            "trigger": "submit", "type": "saveToCollection", "target": "@source:tasks",
+            "onSuccess": [
+              { "type": "closeDialog" },
+              { "type": "showMessage", "value": "“{{form.title}}” added for {{form.owner}}.", "options": { "severity": "success", "title": "Task created" } }
+            ],
+            "onError": [{ "type": "showMessage", "value": "{{error.message}}", "options": { "severity": "error" } }]
+          }]
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "name": "tasks",
+      "kind": "collection",
+      "json": [
+        { "id": "t1", "title": "Card vault migration", "owner": "Priya Nair", "status": "In progress", "priority": "High", "due": "2026-10-14", "progress": 60 },
+        { "id": "t2", "title": "Retry failed webhooks", "owner": "Marco Rossi", "status": "Blocked", "priority": "High", "due": "2026-10-12", "progress": 30 },
+        { "id": "t3", "title": "Refund flow copy", "owner": "Aiko Tanaka", "status": "Done", "priority": "Low", "due": "2026-10-08", "progress": 100 },
+        { "id": "t4", "title": "Fraud rules review", "owner": "Priya Nair", "status": "In progress", "priority": "Medium", "due": "2026-10-20", "progress": 45 },
+        { "id": "t5", "title": "Settlement report export", "owner": "Marco Rossi", "status": "Todo", "priority": "Medium", "due": "2026-10-24", "progress": 0 }
+      ]
+    }
+  ]
+}

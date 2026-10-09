@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core'
 import {
+  Action,
   Block,
   Scope,
   blockClasses,
@@ -80,11 +81,11 @@ export class FormBlock {
         ...this.scope(),
         form: this.form.values(),
       })
+      // The built-in message is a fallback: skip it when the steps give their own feedback.
       if (
         success &&
-        !block.actions.some(
-          (action) =>
-            action.trigger === 'submit' && action.type === 'showMessage',
+        !givesFeedback(
+          block.actions.filter((action) => action.trigger === 'submit'),
         )
       )
         this.runtime.notify({ severity: 'success', message: success })
@@ -98,4 +99,15 @@ export class FormBlock {
     event.preventDefault()
     this.form.reset()
   }
+}
+
+/** True when any step (including success branches and parallel steps) shows a message or opens a dialog. */
+function givesFeedback(actions: readonly Action[]): boolean {
+  return actions.some(
+    (action) =>
+      action.type === 'showMessage' ||
+      action.type === 'openDialog' ||
+      givesFeedback(action.onSuccess ?? []) ||
+      (action.branches ?? []).some(givesFeedback),
+  )
 }

@@ -8,7 +8,9 @@
     "build": "ng build",
     "lint": "ngc -p tsconfig.app.json --noEmit",
     "tsc": "tsc --noEmit -p tsconfig.app.json",
-    "test": "esbuild src/app/core/model/*.spec.ts src/app/core/runtime/*.spec.ts --bundle --platform=node --format=esm --outdir=.test --out-extension:.js=.mjs --log-level=warning && node --test '.test/**/*.spec.mjs'"
+    "test": "esbuild src/app/core/model/*.spec.ts src/app/core/runtime/*.spec.ts --bundle --platform=node --format=esm --outdir=.test --out-extension:.js=.mjs --log-level=warning && node --test '.test/**/*.spec.mjs'",
+    "ai:docs": "esbuild scripts/ai-docs.ts --bundle --platform=node --format=esm --outfile=.test/ai-docs.mjs --log-level=warning && node .test/ai-docs.mjs",
+    "spec:check": "esbuild scripts/check-spec.ts --bundle --platform=node --format=esm --outfile=.test/check-spec.mjs --log-level=warning && node .test/check-spec.mjs"
   },
   "dependencies": {
     "@angular/common": "22.2.1",

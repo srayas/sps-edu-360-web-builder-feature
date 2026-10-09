@@ -267,4 +267,15 @@
   .wb-studio-loading { display: grid; grid-template-columns: 304px minmax(0, 1fr) 340px; gap: 8px; padding: 0 8px 8px; height: calc(100dvh - 56px); }
   .wb-studio-loading > * { background: var(--mat-sys-surface-container-lowest); border-radius: var(--mat-sys-corner-extra-large); overflow: hidden; }
   @media (max-width: 1199.98px) { .wb-studio-loading { grid-template-columns: minmax(0, 1fr); } .wb-studio-loading > :not(:nth-child(2)) { display: none; } }
+
+  // Import from AI dialog
+  .wb-import-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: var(--ui-space-5, 24px); min-width: min(880px, 80vw); }
+  @media (max-width: 840px) { .wb-import-grid { grid-template-columns: minmax(0, 1fr); min-width: 0; } }
+  .wb-import-text { min-height: 280px; resize: vertical; }
+  .wb-import-issues { list-style: none; display: grid; gap: 6px; max-height: 200px; overflow: auto; }
+  .wb-import-issues code { font: 12px / 1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--mat-sys-on-surface-variant); }
+  .wb-import-outline { max-height: 300px; overflow: auto; gap: 2px; }
+  @for $depth from 1 through 8 { .wb-import-row[data-depth='#{$depth}'] { padding-inline-start: $depth * 16px; } }
+  .wb-text-warning { color: light-dark(#b45309, #fbbf24); }
 }
+

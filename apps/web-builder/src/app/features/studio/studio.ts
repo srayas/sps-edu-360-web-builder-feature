@@ -4,6 +4,7 @@ import {
   DOCUMENT,
   DestroyRef,
   HostListener,
+  Injector,
   computed,
   effect,
   inject,
@@ -29,9 +30,11 @@ import { MatFormFieldModule } from '@angular/material/form-field'
 import { MatInputModule } from '@angular/material/input'
 import { MatProgressBarModule } from '@angular/material/progress-bar'
 import { MatSnackBar } from '@angular/material/snack-bar'
+import { MatDialog } from '@angular/material/dialog'
+import { Clipboard } from '@angular/cdk/clipboard'
 import { MatDividerModule } from '@angular/material/divider'
 import { Skeleton, ThemeSwitcher } from '@spsedu360/shared-ui'
-import { TEMPLATES, exportPage, parseProject } from '../../core/model'
+import { SpecMode, TEMPLATES, exportPage, parseProject } from '../../core/model'
 import { ProjectRepository } from '../../core/persistence/project-repository'
 import {
   DragData,
@@ -48,6 +51,7 @@ import { DataPanel } from './data-panel'
 import { ThemePanel } from './theme-panel'
 import { Inspector } from './inspector'
 import { LogicPanel } from './logic/logic-panel'
+import { ImportSpecDialog } from './import-spec-dialog'
 
 /** Connects the renderer's drag-and-drop and selection to the studio store. */
 class StudioBridge implements EditorBridge {
@@ -161,11 +165,16 @@ const LEFT_TABS: LeftTab[] = [
 export class Studio {
   /** Route parameter. */
   readonly id = input.required<string>()
+  /** `?import=ai` opens Import from AI once the project is loaded (used by “New app from AI”). */
+  readonly import = input<string>()
 
   readonly store = inject(BuilderStore)
   readonly runtime = inject(SiteRuntime)
   private readonly repository = inject(ProjectRepository)
   private readonly snack = inject(MatSnackBar)
+  private readonly dialog = inject(MatDialog)
+  private readonly injector = inject(Injector)
+  private readonly clipboard = inject(Clipboard)
   private readonly router = inject(Router)
   private readonly document = inject(DOCUMENT)
   private readonly title = inject(Title)
@@ -249,8 +258,11 @@ export class Studio {
     this.loading.set(true)
     try {
       const project = await this.repository.get(id)
-      if (project) this.store.load(project)
-      else this.notFound.set(true)
+      if (project) {
+        this.store.load(project)
+        if (this.import() === 'ai')
+          setTimeout(() => this.openImport('', 'replace'))
+      } else this.notFound.set(true)
     } catch (error) {
       this.notFound.set(true)
       this.snack.open(
@@ -313,6 +325,43 @@ export class Studio {
     link.download = name
     link.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  openImport(text = '', mode: SpecMode = 'new'): void {
+    this.dialog
+      .open(ImportSpecDialog, {
+        data: { text, mode },
+        autoFocus: false,
+        maxWidth: '96vw',
+        injector: this.injector,
+      })
+      .afterClosed()
+      .subscribe((name?: string) => {
+        if (name)
+          this.snack.open(
+            `Imported into “${name}”. Undo (Ctrl+Z) restores the previous version.`,
+            'Close',
+            { duration: 5000 },
+          )
+      })
+  }
+
+  copyPageSpec(): void {
+    this.clipboard.copy(JSON.stringify(this.store.pageSpec(), null, 2))
+    this.snack.open(
+      'Page JSON copied. Paste it into your AI assistant with the change you want.',
+      'Close',
+      { duration: 4000 },
+    )
+  }
+
+  downloadPageSpec(): void {
+    const spec = this.store.pageSpec()
+    this.download(
+      `${(spec.path || 'page').replace(/[^\w-]+/g, '-')}.page.json`,
+      JSON.stringify(spec, null, 2),
+      'application/json',
+    )
   }
 
   exportJson(): void {

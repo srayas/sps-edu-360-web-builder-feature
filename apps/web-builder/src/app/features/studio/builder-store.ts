@@ -46,6 +46,10 @@ import {
   LogicFunction,
   Workflow,
   CellKind,
+  PageSpec,
+  SpecMode,
+  addSpecToProject,
+  pageToSpec,
 } from '../../core/model'
 import { ProjectRepository } from '../../core/persistence/project-repository'
 
@@ -215,6 +219,42 @@ export class BuilderStore {
     })
     if (ok) this.selectedId.set(firstId)
     return ok
+  }
+
+  /**
+   * Adds a checked page spec (from an AI assistant or a copied page): as a new page, appended to
+   * the current page, or replacing it. Returns the receiving page's name ('' when nothing changed).
+   */
+  importSpec(spec: PageSpec, mode: SpecMode, applyTheme = false): string {
+    if (mode === 'new' && this.project().pages.length >= LIMITS.pages) return ''
+    let pageId = ''
+    let name = ''
+    const ok = this.change((project) => {
+      const page = addSpecToProject(
+        project,
+        structuredClone(spec),
+        mode,
+        this.page().id,
+        applyTheme,
+      )
+      if (
+        countBlocks(project.pages.flatMap((item) => item.blocks)) >
+        LIMITS.blocks
+      )
+        return false
+      pageId = page.id
+      name = page.name
+      return true
+    })
+    if (!ok) return ''
+    this.pageId.set(pageId)
+    this.selectedId.set('')
+    return name
+  }
+
+  /** The current page as a page spec (JSON an AI assistant can read and edit). */
+  pageSpec(): PageSpec {
+    return pageToSpec(this.project(), this.page())
   }
 
   /** Creates a new page from a page template (or a blank page). */
