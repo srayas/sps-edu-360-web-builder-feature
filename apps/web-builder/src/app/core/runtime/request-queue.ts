@@ -18,9 +18,28 @@ export class RequestError extends Error {
     message: string,
     readonly status = 0,
     readonly retryable = false,
+    /** Parsed error response body (JSON when possible), e.g. field errors from the server. */
+    readonly body: unknown = null,
   ) {
     super(message)
   }
+}
+
+/** Picks a human-readable message from common error response shapes. */
+export function errorMessageFrom(body: unknown, status: number): string {
+  if (typeof body === 'string' && body.trim() && body.length < 300)
+    return body.trim()
+  if (body && typeof body === 'object') {
+    const record = body as Record<string, unknown>
+    for (const key of ['message', 'error', 'detail', 'title']) {
+      const value = record[key]
+      if (typeof value === 'string' && value.trim())
+        return value.trim().slice(0, 300)
+      if (Array.isArray(value) && typeof value[0] === 'string')
+        return String(value[0]).slice(0, 300)
+    }
+  }
+  return `Request failed (${status})`
 }
 
 const OUTBOX_KEY = 'wb-outbox'
@@ -130,12 +149,21 @@ export class RequestQueue {
           credentials: 'same-origin',
           signal: controller.signal,
         }).finally(() => clearTimeout(timer))
-        if (!response.ok)
+        if (!response.ok) {
+          const raw = await response.text().catch(() => '')
+          let body: unknown = raw
+          try {
+            body = raw ? JSON.parse(raw) : null
+          } catch {
+            /* keep text */
+          }
           throw new RequestError(
-            `Request failed (${response.status})`,
+            errorMessageFrom(body, response.status),
             response.status,
             isRetryableStatus(response.status),
+            body,
           )
+        }
         const text = await response.text()
         try {
           return text ? JSON.parse(text) : null

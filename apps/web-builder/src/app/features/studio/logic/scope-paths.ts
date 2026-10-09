@@ -11,7 +11,17 @@ import {
 export interface PathOption {
   path: string
   label: string
-  group: 'Fields' | 'Variables' | 'Data' | 'Row' | 'Page'
+  group:
+    | 'Fields'
+    | 'Variables'
+    | 'Data'
+    | 'Row'
+    | 'Page'
+    | 'Field'
+    | 'Response'
+    | 'Error'
+    | 'Input'
+    | 'Steps'
 }
 
 /** Everything a binding on `page` can read, for the field pickers in the logic editors. */

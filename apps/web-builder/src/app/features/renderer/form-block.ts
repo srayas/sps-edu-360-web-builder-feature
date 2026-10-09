@@ -54,7 +54,7 @@ export class FormBlock {
 
   private readonly runtime = inject(SiteRuntime)
   private readonly form = inject(FormScope)
-  readonly busy = signal(false)
+  readonly busy = this.form.busy
   readonly classes = computed(() => blockClasses(this.block()))
   readonly layout = computed(() => blockLayoutClasses(this.block()))
 
@@ -62,7 +62,10 @@ export class FormBlock {
     event.preventDefault()
     if (this.runtime.mode() === 'edit' || this.busy() || this.disabled()) return
     if (!this.form.validate()) {
-      this.runtime.message('Please complete the highlighted fields.')
+      this.runtime.notify({
+        severity: 'warning',
+        message: 'Please complete the highlighted fields.',
+      })
       return
     }
     this.busy.set(true)
@@ -84,7 +87,7 @@ export class FormBlock {
             action.trigger === 'submit' && action.type === 'showMessage',
         )
       )
-        this.runtime.message(success)
+        this.runtime.notify({ severity: 'success', message: success })
       if (block.props['resetOnSubmit']) this.form.reset()
     } finally {
       this.busy.set(false)

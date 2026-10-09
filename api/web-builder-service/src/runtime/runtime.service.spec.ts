@@ -77,6 +77,29 @@ describe('RuntimeService', () => {
     expect(await runtime.list('app-1', 'people')).toEqual([]);
   });
 
+  it('updates and deletes single records', async () => {
+    const row = await runtime.add('app-1', 'people', {
+      id: 'r9',
+      name: 'Ada',
+      city: 'London',
+    });
+    const updated = await runtime.update('app-1', 'people', 'r9', {
+      id: 'hijack',
+      city: 'Paris',
+    });
+    expect(updated).toMatchObject({
+      id: 'r9',
+      name: 'Ada',
+      city: 'Paris',
+      createdAt: row.createdAt,
+    });
+    await runtime.removeRecord('app-1', 'people', 'r9');
+    expect(await runtime.list('app-1', 'people')).toEqual([]);
+    await expect(runtime.removeRecord('app-1', 'people', 'r9')).rejects.toThrow(
+      'not found',
+    );
+  });
+
   it('keeps concurrent submissions', async () => {
     await Promise.all(
       Array.from({ length: 20 }, (_, index) =>

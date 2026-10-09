@@ -47,8 +47,10 @@
   @case ('button') {
     @switch (b.props['variant']) {
       @case ('icon') {
-        <button matIconButton [type]="$any(b.props['htmlType'])" [class]="classes()" [disabled]="bool('disabled')" [attr.aria-label]="t('text')"
-                [matTooltip]="t('tooltip') || t('text')" (click)="activate($event)"><mat-icon>{{ b.props['icon'] || 'star' }}</mat-icon></button>
+        <button matIconButton [type]="$any(b.props['htmlType'])" [class]="classes()" [disabled]="bool('disabled') || working()" [attr.aria-label]="t('text')" [attr.aria-busy]="working()"
+                [matTooltip]="t('tooltip') || t('text')" (click)="activate($event)">
+          @if (working()) { <mat-progress-spinner mode="indeterminate" diameter="18" /> } @else { <mat-icon>{{ b.props['icon'] || 'star' }}</mat-icon> }
+        </button>
       }
       @case ('fab') {
         <button matFab [type]="$any(b.props['htmlType'])" [class]="classes()" [disabled]="bool('disabled')" [attr.aria-label]="t('text')"
@@ -70,9 +72,10 @@
             @if (b.props['icon']) { <mat-icon>{{ b.props['icon'] }}</mat-icon> }{{ t('text') }}
           </a>
         } @else {
-          <button [matButton]="appearance() || 'filled'" [type]="$any(b.props['htmlType'])" [class]="classes()" [disabled]="bool('disabled')"
+          <button [matButton]="appearance() || 'filled'" [type]="$any(b.props['htmlType'])" [class]="classes()" [disabled]="bool('disabled') || working()" [attr.aria-busy]="working()"
                   [matTooltip]="t('tooltip')" [matTooltipDisabled]="!b.props['tooltip']" (click)="activate($event)">
-            @if (b.props['icon']) { <mat-icon>{{ b.props['icon'] }}</mat-icon> }{{ t('text') }}
+            @if (working()) { <mat-progress-spinner class="wb-button-spinner" mode="indeterminate" diameter="16" /> }
+            @else if (b.props['icon']) { <mat-icon>{{ b.props['icon'] }}</mat-icon> }{{ t('text') }}
           </button>
         }
       }

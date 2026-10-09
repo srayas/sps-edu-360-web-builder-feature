@@ -37,6 +37,7 @@ import { MatChipInputEvent, MatChipsModule } from '@angular/material/chips'
 import { MatIconModule } from '@angular/material/icon'
 import { MatButtonModule } from '@angular/material/button'
 import { provideNativeDateAdapter } from '@angular/material/core'
+import { readPath } from '@spsedu360/json-logic'
 import {
   Block,
   Scope,
@@ -45,7 +46,9 @@ import {
   interpolate,
   lines,
   lookup,
+  ruleDependencies,
   stringify,
+  validateValue,
 } from '../../core/model'
 import { FormScope } from '../../core/runtime/form-scope'
 import { SiteRuntime } from '../../core/runtime/site-runtime'
@@ -108,6 +111,8 @@ export class FieldBlock implements OnInit {
     this.control.events.pipe(map((_, index) => index)),
     { initialValue: 0 },
   )
+  /** Bumped when cross-field rules revalidate without emitting value events. */
+  private readonly revalidated = signal(0)
   readonly filter = signal('')
   readonly separators = [ENTER, COMMA] as const
 
@@ -152,13 +157,17 @@ export class FieldBlock implements OnInit {
 
   readonly invalid = computed(() => {
     this.state()
+    this.revalidated()
     return this.control.invalid && this.control.touched
   })
   readonly error = computed(() => {
     this.state()
+    this.revalidated()
     const errors = this.control.errors ?? {}
     const label = this.label() || 'This field'
+    if (typeof errors['server'] === 'string') return errors['server']
     if (errors['required']) return `${label} is required.`
+    if (typeof errors['rule'] === 'string') return errors['rule']
     if (errors['email']) return 'Enter a valid email address.'
     if (errors['minlength'])
       return `Use at least ${errors['minlength'].requiredLength} characters.`
@@ -191,6 +200,7 @@ export class FieldBlock implements OnInit {
         props['maxLength'],
         props['pattern'],
         props['disabled'],
+        this.block().validations ?? [],
       ])
     })
     effect(() => {
@@ -221,6 +231,17 @@ export class FieldBlock implements OnInit {
           /* ignore invalid pattern */
         }
       }
+      const rules = untracked(() => this.block().validations ?? [])
+      if (rules.length)
+        validators.push((control: AbstractControl) => {
+          const message = validateValue(
+            rules,
+            control.value,
+            untracked(() => this.runtime.scope()) as Record<string, unknown>,
+            untracked(() => this.label()),
+          )
+          return message ? { rule: message } : null
+        })
       untracked(() => {
         this.control.setValidators(validators)
         if (props['disabled']) this.control.disable({ emitEvent: false })
@@ -229,12 +250,26 @@ export class FieldBlock implements OnInit {
       })
     })
 
-    // Initial value; re-applied only when the default itself changes (e.g. edited in the studio).
+    // Rules that read other fields or values (match, custom, conditional) revalidate when the page
+    // changes, without emitting value events (so change actions don't fire).
+    effect(() => {
+      const rules = this.block().validations ?? []
+      if (!ruleDependencies(rules)) return
+      this.runtime.scope()
+      untracked(() => {
+        if (!this.control.touched && !this.control.dirty) return
+        this.control.updateValueAndValidity({ emitEvent: false })
+        this.revalidated.update((count) => count + 1)
+      })
+    })
+
+    // Initial value; re-applied only when the default itself changes (e.g. edited in the studio),
+    // and never over something the person already typed.
     const initialKey = computed(() => JSON.stringify(this.initial()))
     effect(() => {
       initialKey()
       untracked(() => {
-        if (this.computedValue()) return
+        if (this.computedValue() || this.control.dirty) return
         const bound = this.boundValue()
         this.control.setValue(bound ?? this.initial(), { emitEvent: false })
         this.publish()
@@ -362,6 +397,34 @@ export class FieldBlock implements OnInit {
 
   private initial(): unknown {
     const block = this.block()
+    const preset = String(block.props['defaultValue'] ?? '')
+    if (preset.trim()) {
+      const single = /^\s*\{\{\s*([\w.-]+)\s*\}\}\s*$/.exec(preset)
+      const raw = single
+        ? readPath(this.scope(), single[1].split('.'))
+        : interpolate(preset, this.scope())
+      if (raw !== undefined && raw !== null && raw !== '') {
+        if (block.type === 'checkbox' || block.type === 'switch')
+          return raw === true || String(raw).toLowerCase() === 'true'
+        if (block.type === 'slider') return Number(raw) || 0
+        if (
+          MULTI_VALUE.has(block.type) ||
+          ((block.type === 'select' || block.type === 'toggle-group') &&
+            block.props['multiple'])
+        )
+          return Array.isArray(raw)
+            ? raw.map(String)
+            : String(raw)
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean)
+        if (block.type === 'datepicker' || block.type === 'calendar') {
+          const date = new Date(String(raw))
+          return Number.isNaN(date.getTime()) ? null : date
+        }
+        return typeof raw === 'object' ? JSON.stringify(raw) : String(raw)
+      }
+    }
     switch (block.type) {
       case 'checkbox':
       case 'switch':

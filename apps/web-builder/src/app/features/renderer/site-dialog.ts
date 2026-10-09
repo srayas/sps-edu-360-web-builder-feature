@@ -16,8 +16,19 @@ import { BlockList } from './block-list'
   imports: [MatDialogModule, MatButtonModule, MatIconModule, BlockList],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (data.block.props['presentation'] === 'bottom') {
+      <span class="wb-sheet-handle" aria-hidden="true"></span>
+    }
     <div class="ui-row ui-align-center ui-gap-2 ui-divider-bottom">
-      <h2 mat-dialog-title class="ui-grow">{{ title() }}</h2>
+      <h2 mat-dialog-title class="ui-grow">
+        {{ title() }}
+        @if (subtitle()) {
+          <span
+            class="wb-dialog-subtitle mat-font-body-md mat-text-on-surface-variant"
+            >{{ subtitle() }}</span
+          >
+        }
+      </h2>
       @if (data.block.props['closeButton']) {
         <button
           matIconButton
@@ -45,6 +56,9 @@ export class SiteDialog {
   readonly data = inject<{ block: Block; scope: Scope }>(MAT_DIALOG_DATA)
   readonly title = computed(() =>
     interpolate(this.data.block.props['title'], this.data.scope),
+  )
+  readonly subtitle = computed(() =>
+    interpolate(this.data.block.props['subtitle'], this.data.scope),
   )
   readonly layout = computed(
     () => blockLayoutClasses(this.data.block) + ' ui-py-2',

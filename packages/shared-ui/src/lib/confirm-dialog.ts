@@ -18,6 +18,8 @@ export interface ConfirmOptions {
   confirmText?: string
   cancelText?: string
   destructive?: boolean
+  /** Extra overlay panel classes (e.g. a theme scope). */
+  panelClass?: string[]
 }
 
 @Component({
@@ -57,7 +59,12 @@ export class ConfirmService {
   async confirm(options: ConfirmOptions): Promise<boolean> {
     const ref = this.dialog.open<ConfirmDialog, ConfirmOptions, boolean>(
       ConfirmDialog,
-      { data: options },
+      {
+        data: options,
+        panelClass: options.panelClass,
+        width: '420px',
+        maxWidth: 'calc(100vw - 32px)',
+      },
     )
     return (await firstValueFrom(ref.afterClosed())) === true
   }

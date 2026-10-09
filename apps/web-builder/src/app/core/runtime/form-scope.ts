@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core'
+import { Injectable, signal } from '@angular/core'
 import type { AbstractControl } from '@angular/forms'
 
 export interface FieldRegistration {
@@ -17,6 +17,8 @@ export interface FieldRegistration {
 @Injectable()
 export class FormScope {
   private readonly fields = new Map<string, FieldRegistration>()
+  /** True while the form's submit actions run (submit buttons show progress). */
+  readonly busy = signal(false)
 
   register(field: FieldRegistration): void {
     this.fields.set(field.blockId, field)
@@ -42,6 +44,38 @@ export class FormScope {
     }
     firstInvalid?.focus?.()
     return !firstInvalid
+  }
+
+  /**
+   * Shows field errors returned by a server (e.g. "email is already taken") on the matching
+   * fields and focuses the first one. Returns how many fields were matched. The errors clear as
+   * soon as the user edits the field.
+   */
+  setServerErrors(errors: Record<string, string>): number {
+    const normalized = new Map(
+      Object.entries(errors).map(([key, message]) => [
+        key.toLowerCase(),
+        message,
+      ]),
+    )
+    let first: FieldRegistration | undefined
+    let matched = 0
+    for (const field of this.fields.values()) {
+      const name = field.name().toLowerCase()
+      const message =
+        normalized.get(name) ??
+        [...normalized].find(([key]) => key.split('.').pop() === name)?.[1]
+      if (!message) continue
+      matched++
+      field.control.setErrors({
+        ...(field.control.errors ?? {}),
+        server: message,
+      })
+      field.control.markAsTouched()
+      first ??= field
+    }
+    first?.focus?.()
+    return matched
   }
 
   reset(): void {

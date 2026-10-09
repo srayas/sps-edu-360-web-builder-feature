@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -42,6 +43,27 @@ export class RuntimeController {
     @Param('sourceId') sourceId: string,
   ) {
     return this.runtime.clear(projectId, sourceId);
+  }
+
+  @Patch(':recordId')
+  @ApiOperation({ summary: 'Update one record' })
+  update(
+    @Param('projectId') projectId: string,
+    @Param('sourceId') sourceId: string,
+    @Param('recordId') recordId: string,
+    @Body() body: unknown,
+  ) {
+    return this.runtime.update(projectId, sourceId, recordId, body);
+  }
+
+  @Delete(':recordId')
+  @ApiOperation({ summary: 'Delete one record' })
+  removeRecord(
+    @Param('projectId') projectId: string,
+    @Param('sourceId') sourceId: string,
+    @Param('recordId') recordId: string,
+  ) {
+    return this.runtime.removeRecord(projectId, sourceId, recordId);
   }
 
   @Post('query')

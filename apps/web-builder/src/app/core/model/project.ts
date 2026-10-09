@@ -8,6 +8,7 @@ import {
   defaultProps,
   definition,
   isContainer,
+  isFormField,
   ACTION_DEFINITIONS,
 } from './registry'
 import { safeStyle } from './styles'
@@ -28,6 +29,13 @@ import {
   Variable,
   Viewport,
   Visibility,
+  ValidationRule,
+  TableConfig,
+  TableColumn,
+  ToneRule,
+  ExecutionParam,
+  LogicFunction,
+  Workflow,
   BlockLogic,
   Condition,
   ConditionGroup,
@@ -38,7 +46,8 @@ import {
   QueryFrame,
   RuleEffect,
 } from './types'
-import { validateExpr } from './logic'
+import { FUNCTION_NAME, validateExpr } from './logic'
+import { VALIDATION_DEFINITIONS } from './validation'
 
 export const ID_PATTERN = /^[a-zA-Z0-9-]{1,80}$/
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -287,12 +296,25 @@ export function moveBlock(
 }
 
 export function duplicateBlock(block: Block): Block {
-  return {
+  const children = block.children.map(duplicateBlock)
+  const copy: Block = {
     ...structuredClone(block),
     id: newId(),
     actions: block.actions.map((action) => ({ ...action, id: newId() })),
-    children: block.children.map(duplicateBlock),
+    children,
   }
+  // Custom table cells point at their holder child by id: follow the holders to their copies.
+  if (copy.table) {
+    const ids = new Map(
+      block.children.map((child, index) => [child.id, children[index].id]),
+    )
+    copy.table.columns = copy.table.columns.map((column) =>
+      column.cellBlock
+        ? { ...column, cellBlock: ids.get(column.cellBlock) }
+        : column,
+    )
+  }
+  return copy
 }
 
 export function countBlocks(blocks: Block[]): number {
@@ -367,7 +389,13 @@ const oneOf = <T extends string>(
   fallback: T,
 ): T => (allowed.includes(value as T) ? (value as T) : fallback)
 const VIEWPORTS: readonly Viewport[] = ['desktop', 'tablet', 'mobile']
-const TRIGGERS: readonly Trigger[] = ['click', 'submit', 'change', 'load']
+const TRIGGERS: readonly Trigger[] = [
+  'click',
+  'submit',
+  'change',
+  'load',
+  'rowClick',
+]
 
 const EXPR_KINDS = ['conditions', 'template', 'rule'] as const
 const EFFECTS: readonly EffectKind[] = [
@@ -580,10 +608,33 @@ function normalizeStyles(value: unknown): StyleMap {
   return styles
 }
 
-function normalizeActions(value: unknown): Action[] {
-  if (value === undefined) return []
+const OPTION_KEY = /^[a-zA-Z][\w]{0,30}$/
+
+function normalizeOptions(value: unknown): Record<string, string> | undefined {
+  if (!isObject(value)) return undefined
+  const out: Record<string, string> = {}
+  for (const [key, raw] of Object.entries(value).slice(0, 16)) {
+    if (
+      OPTION_KEY.test(key) &&
+      (typeof raw === 'string' ||
+        typeof raw === 'number' ||
+        typeof raw === 'boolean')
+    )
+      out[key] = str(String(raw), 2000)
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
+/** Actions, including nested success/error steps (at most 3 levels deep). */
+function normalizeActions(
+  value: unknown,
+  depth = 0,
+  trigger?: Trigger,
+): Action[] {
+  if (value === undefined || value === null) return []
   if (!Array.isArray(value) || value.length > LIMITS.actions)
     fail('Invalid actions.')
+  if (depth > 5) fail('Actions are nested too deeply.')
   return (value as unknown[]).map((raw) => {
     if (
       !isObject(raw) ||
@@ -591,15 +642,249 @@ function normalizeActions(value: unknown): Action[] {
     )
       fail('Unknown action.')
     const action = raw as Record<string, unknown>
-    return {
+    const ownTrigger = trigger ?? oneOf(action['trigger'], TRIGGERS, 'click')
+    const out: Action = {
       id: ID_PATTERN.test(str(action['id'])) ? str(action['id']) : newId(),
-      trigger: oneOf(action['trigger'], TRIGGERS, 'click'),
+      trigger: ownTrigger,
       type: action['type'] as Action['type'],
       target: str(action['target'], 2000),
       value: str(action['value'], 2000),
       when: normalizeExpr(action['when'], 'an action condition'),
     }
+    const options = normalizeOptions(action['options'])
+    if (options) out.options = options
+    const expr = normalizeExpr(action['expr'], 'a compute step')
+    if (expr) out.expr = expr
+    if (Array.isArray(action['branches'])) {
+      const branches = (action['branches'] as unknown[])
+        .slice(0, 8)
+        .map((branch) => normalizeActions(branch, depth + 1, ownTrigger))
+      if (branches.length) out.branches = branches
+    }
+    const onSuccess = normalizeActions(
+      action['onSuccess'],
+      depth + 1,
+      ownTrigger,
+    )
+    const onError = normalizeActions(action['onError'], depth + 1, ownTrigger)
+    if (onSuccess.length) out.onSuccess = onSuccess
+    if (onError.length) out.onError = onError
+    return out
   })
+}
+
+const TONE_VALUES = [
+  '',
+  'primary',
+  'success',
+  'warning',
+  'error',
+  'info',
+  'muted',
+] as const
+
+function normalizeTones(value: unknown, where: string): ToneRule[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const rules: ToneRule[] = []
+  for (const raw of (value as unknown[]).slice(0, 20)) {
+    if (!isObject(raw)) continue
+    const entry = raw as Record<string, unknown>
+    const when = normalizeExpr(entry['when'], where)
+    if (!when) continue
+    rules.push({
+      id: ID_PATTERN.test(str(entry['id'])) ? str(entry['id']) : newId(),
+      when,
+      tone: oneOf(entry['tone'], TONE_VALUES, 'warning'),
+    })
+  }
+  return rules.length ? rules : undefined
+}
+
+const COLUMN_FORMAT_NAMES = [
+  'text',
+  'number',
+  'currency',
+  'percent',
+  'date',
+  'datetime',
+  'boolean',
+  'badge',
+  'link',
+  'image',
+  'avatar',
+  'progress',
+] as const
+
+/** Table configuration: columns, row actions, merges and header groups (bounded and validated). */
+function normalizeTable(
+  value: unknown,
+  where: string,
+): TableConfig | undefined {
+  if (!isObject(value)) return undefined
+  const input = value as Record<string, unknown>
+  const list = (raw: unknown, max: number): Record<string, unknown>[] =>
+    Array.isArray(raw)
+      ? ((raw as unknown[]).slice(0, max).filter(isObject) as Record<
+          string,
+          unknown
+        >[])
+      : []
+  const anId = (raw: unknown) =>
+    ID_PATTERN.test(str(raw)) ? str(raw) : newId()
+  const columns: TableColumn[] = list(input['columns'], 60).map((column) => {
+    const out: TableColumn = {
+      id: anId(column['id']),
+      field: str(column['field'], 200),
+      header: str(column['header'], 200),
+      format: oneOf(column['format'], COLUMN_FORMAT_NAMES, 'text'),
+      align: oneOf(
+        column['align'],
+        ['start', 'center', 'end'] as const,
+        'start',
+      ),
+      sortable: column['sortable'] !== false,
+    }
+    const width = str(column['width'], 4)
+    if (['xs', 'sm', 'md', 'lg', 'xl'].includes(width)) out.width = width
+    const options = normalizeOptions(column['formatOptions'])
+    if (options) out.formatOptions = options
+    const valueExpr = normalizeExpr(column['value'], `${where} (column value)`)
+    if (valueExpr) out.value = valueExpr
+    const visible = normalizeExpr(
+      column['visible'],
+      `${where} (column visibility)`,
+    )
+    if (visible) out.visible = visible
+    const tones = normalizeTones(column['tones'], `${where} (cell highlight)`)
+    if (tones) out.tones = tones
+    if (column['mergeEqual'] === true) out.mergeEqual = true
+    const cell = oneOf(
+      column['cell'],
+      [
+        'display',
+        'input',
+        'number',
+        'checkbox',
+        'switch',
+        'select',
+        'date',
+        'blocks',
+      ] as const,
+      'display',
+    )
+    if (cell !== 'display') out.cell = cell
+    const cellOptions = str(column['options'], 5000)
+    if (cellOptions) out.options = cellOptions
+    const optionsExpr = normalizeExpr(
+      column['optionsExpr'],
+      `${where} (cell options)`,
+    )
+    if (optionsExpr) out.optionsExpr = optionsExpr
+    const cellWhen =
+      cell !== 'display'
+        ? normalizeExpr(column['cellWhen'], `${where} (cell condition)`)
+        : undefined
+    if (cellWhen) out.cellWhen = cellWhen
+    const placeholder = str(column['placeholder'], 120)
+    if (placeholder) out.placeholder = placeholder
+    const validations = normalizeValidations(
+      column['validations'],
+      `${where} (cell validation)`,
+    )
+    if (validations?.length) out.validations = validations
+    if (column['autoSave'] === true) out.autoSave = true
+    const onChange = normalizeActions(column['onChange'], 1, 'change')
+    if (onChange.length) out.onChange = onChange
+    const cellBlock = str(column['cellBlock'], 80)
+    if (cellBlock) out.cellBlock = cellBlock
+    return out
+  })
+  const ids = new Set(columns.map((column) => column.id))
+  const table: TableConfig = {
+    columns,
+    rowActions: list(input['rowActions'], 8).map((action) => {
+      const out: TableConfig['rowActions'][number] = {
+        id: anId(action['id']),
+        label: str(action['label'], 60) || 'Action',
+        icon: str(action['icon'], 60) || 'bolt',
+        display: oneOf(action['display'], ['icon', 'text'] as const, 'icon'),
+        actions: normalizeActions(action['actions'], 1, 'click'),
+      }
+      if (action['danger'] === true) out.danger = true
+      const visible = normalizeExpr(
+        action['visible'],
+        `${where} (row action visibility)`,
+      )
+      if (visible) out.visible = visible
+      return out
+    }),
+    merges: list(input['merges'], 50)
+      .map((merge) => {
+        const out: TableConfig['merges'][number] = {
+          id: anId(merge['id']),
+          column: str(merge['column'], 80),
+          colspan: Math.min(
+            Math.max(Math.floor(Number(merge['colspan'])) || 1, 1),
+            60,
+          ),
+          rowspan: Math.min(
+            Math.max(Math.floor(Number(merge['rowspan'])) || 1, 1),
+            1000,
+          ),
+        }
+        const rows = str(merge['rows'], 200)
+        if (rows) out.rows = rows
+        const when = normalizeExpr(merge['when'], `${where} (merge condition)`)
+        if (when) out.when = when
+        return out
+      })
+      .filter((merge) => ids.has(merge.column)),
+    headerGroups: list(input['headerGroups'], 30)
+      .map((group) => ({
+        id: anId(group['id']),
+        label: str(group['label'], 120),
+        column: str(group['column'], 80),
+        span: Math.min(Math.max(Math.floor(Number(group['span'])) || 1, 1), 60),
+      }))
+      .filter((group) => ids.has(group.column)),
+  }
+  const rowTones = normalizeTones(input['rowTones'], `${where} (row highlight)`)
+  if (rowTones) table.rowTones = rowTones
+  const empty = str(input['emptyText'], 300)
+  if (empty) table.emptyText = empty
+  return table
+}
+
+function normalizeValidations(
+  value: unknown,
+  where: string,
+): ValidationRule[] | undefined {
+  if (value === undefined || value === null) return undefined
+  if (!Array.isArray(value) || value.length > 30)
+    fail(`Invalid validation rules in ${where}.`)
+  const rules: ValidationRule[] = []
+  for (const raw of value as unknown[]) {
+    if (!isObject(raw)) fail(`Invalid validation rule in ${where}.`)
+    const entry = raw as Record<string, unknown>
+    const definition = VALIDATION_DEFINITIONS.find(
+      (item) => item.kind === entry['kind'],
+    )
+    if (!definition) return fail(`Unknown validation rule in ${where}.`)
+    const rule: ValidationRule = {
+      id: ID_PATTERN.test(str(entry['id'])) ? str(entry['id']) : newId(),
+      kind: definition.kind,
+    }
+    if (entry['value'] !== undefined)
+      rule.value = str(String(entry['value']), 500)
+    if (entry['message'] !== undefined)
+      rule.message = str(String(entry['message']), 300)
+    const when = normalizeExpr(entry['when'], `${where} (validation condition)`)
+    if (when) rule.when = when
+    const expr = normalizeExpr(entry['expr'], `${where} (custom validation)`)
+    if (expr) rule.expr = expr
+    rules.push(rule)
+  }
+  return rules
 }
 
 function normalizeProps(type: string, value: unknown): Props {
@@ -681,6 +966,24 @@ function normalizeBlocks(
         block['logic'],
         `block “${str(block['name'], 120)}”`,
       ),
+      ...(isFormField(type) &&
+      Array.isArray(block['validations']) &&
+      (block['validations'] as unknown[]).length
+        ? {
+            validations: normalizeValidations(
+              block['validations'],
+              `block “${str(block['name'], 120)}”`,
+            ),
+          }
+        : {}),
+      ...(type === 'table' && isObject(block['table'])
+        ? {
+            table: normalizeTable(
+              block['table'],
+              `table “${str(block['name'], 120)}”`,
+            ),
+          }
+        : {}),
       children: isContainer(type)
         ? normalizeBlocks(children, type, depth + 1, ids, counter)
         : [],
@@ -855,8 +1158,86 @@ export function normalizeProject(raw: unknown): Project {
     pages,
     variables,
     dataSources,
+    ...normalizeExecutions(input),
     updatedAt: str(input['updatedAt'], 40) || new Date().toISOString(),
   }
+}
+
+function normalizeParams(value: unknown, where: string): ExecutionParam[] {
+  if (!Array.isArray(value)) return []
+  const names = new Set<string>()
+  const out: ExecutionParam[] = []
+  for (const raw of (value as unknown[]).slice(0, 12)) {
+    if (!isObject(raw)) continue
+    const entry = raw as Record<string, unknown>
+    const name = str(entry['name'], 40)
+    if (!FUNCTION_NAME.test(name) || names.has(name))
+      fail(`Invalid input name “${name}” in ${where}.`)
+    names.add(name)
+    const param: ExecutionParam = { name }
+    if (entry['defaultValue'] !== undefined && entry['defaultValue'] !== '')
+      param.defaultValue = str(String(entry['defaultValue']), 2000)
+    out.push(param)
+  }
+  return out
+}
+
+/** Project functions and workflows (names are identifiers and unique). */
+function normalizeExecutions(input: Record<string, unknown>): {
+  functions?: LogicFunction[]
+  workflows?: Workflow[]
+} {
+  const out: { functions?: LogicFunction[]; workflows?: Workflow[] } = {}
+  const list = (raw: unknown, max: number) =>
+    Array.isArray(raw)
+      ? ((raw as unknown[]).slice(0, max).filter(isObject) as Record<
+          string,
+          unknown
+        >[])
+      : []
+  const anId = (raw: unknown) =>
+    ID_PATTERN.test(str(raw)) ? str(raw) : newId()
+  const fnNames = new Set<string>()
+  const functions = list(input['functions'], 100).map((raw) => {
+    const name = str(raw['name'], 40)
+    if (!FUNCTION_NAME.test(name) || fnNames.has(name))
+      fail(`Invalid or duplicate function name “${name}”.`)
+    fnNames.add(name)
+    const body = normalizeExpr(raw['body'], `function “${name}”`) ?? {
+      kind: 'rule',
+      rule: null,
+    }
+    const fn: LogicFunction = {
+      id: anId(raw['id']),
+      name,
+      params: normalizeParams(raw['params'], `function “${name}”`),
+      body,
+    }
+    const description = str(raw['description'], 300)
+    if (description) fn.description = description
+    return fn
+  })
+  if (functions.length) out.functions = functions
+  const wfNames = new Set<string>()
+  const workflows = list(input['workflows'], 100).map((raw) => {
+    const name = str(raw['name'], 60).trim()
+    if (!name || wfNames.has(name))
+      fail(`Invalid or duplicate workflow name “${name}”.`)
+    wfNames.add(name)
+    const workflow: Workflow = {
+      id: anId(raw['id']),
+      name,
+      params: normalizeParams(raw['params'], `workflow “${name}”`),
+      steps: normalizeActions(raw['steps'], 0, 'click'),
+    }
+    const description = str(raw['description'], 300)
+    if (description) workflow.description = description
+    const output = normalizeExpr(raw['output'], `workflow “${name}” (output)`)
+    if (output) workflow.output = output
+    return workflow
+  })
+  if (workflows.length) out.workflows = workflows
+  return out
 }
 
 export function parseProject(json: string): Project {

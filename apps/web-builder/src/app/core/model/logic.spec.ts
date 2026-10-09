@@ -161,9 +161,17 @@ test('project normalization keeps valid logic and rejects broken logic', () => {
 })
 
 test('the smart order template carries working logic', async () => {
-  const { TEMPLATES, instantiate, flatten } = await import('./index')
+  const { TEMPLATES, instantiate, flatten, setFunctions } = await import(
+    './index'
+  )
   const template = TEMPLATES.find((item) => item.id === 'page-order')
   assert.ok(template)
+  setFunctions(
+    (template.functions ?? []).map((fn) => ({
+      ...fn,
+      id: crypto.randomUUID(),
+    })),
+  )
   const blocks = flatten(
     instantiate(template.blocks, { sources: {}, variables: {} } as never),
   ).map((entry) => entry.block)

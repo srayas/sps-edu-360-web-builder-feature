@@ -306,6 +306,14 @@ const typography = (variant: string, tone = 'default'): PropDef[] => [
 ]
 const field = (label: string, extra: PropDef[] = []): PropDef[] => [
   text('label', 'Label', label),
+  {
+    key: 'defaultValue',
+    label: 'Default value',
+    kind: 'text',
+    default: '',
+    hint: 'Supports {{…}}, e.g. {{row.name}} in an edit dialog',
+    section: 'content',
+  },
   content({
     key: 'field',
     label: 'Field name',
@@ -1229,7 +1237,11 @@ export const BLOCK_DEFINITIONS: readonly BlockDefinition[] = [
     label: 'Data table',
     icon: 'table_chart',
     group: 'Data',
-    description: 'Material table with sorting, filtering and paging.',
+    description:
+      'Material table with columns, formats, editable cells, custom cell blocks, row actions, merges, sorting, search and paging.',
+    container: true,
+    accepts: ['table-cell'],
+    events: ['rowClick'],
     props: [
       items(
         'Name|Role|Status\nAva Patel|Designer|Active\nLiam Chen|Engineer|Active\nNoah Kim|Analyst|Away',
@@ -1241,7 +1253,7 @@ export const BLOCK_DEFINITIONS: readonly BlockDefinition[] = [
           label: 'Columns',
           kind: 'items',
           default: '',
-          hint: 'field|Header per line; empty shows every field',
+          hint: 'Simple setup: field|Header per line. The Columns editor below gives full control.',
           section: 'data',
         }),
       ]),
@@ -1251,6 +1263,18 @@ export const BLOCK_DEFINITIONS: readonly BlockDefinition[] = [
       num('pageSize', 'Rows per page', 5, 1, 100, 'behaviour'),
       toggle('striped', 'Outlined container', true, 'appearance'),
     ],
+  },
+  {
+    type: 'table-cell',
+    label: 'Table cell',
+    icon: 'grid_on',
+    group: 'Data',
+    container: true,
+    parents: ['table'],
+    internal: true,
+    description:
+      'Blocks shown in every row of a table column. Use {{row.field}} inside.',
+    props: [...layout({ gap: '2' })],
   },
   {
     type: 'data-list',
@@ -1411,13 +1435,27 @@ export const BLOCK_DEFINITIONS: readonly BlockDefinition[] = [
   },
   {
     type: 'dialog',
-    label: 'Dialog',
+    label: 'Dialog / sheet',
     icon: 'open_in_new',
     group: 'Overlays',
     container: true,
-    description: 'Hidden until opened by an “Open dialog” action.',
+    description:
+      'Modal popup, side sheet, bottom sheet or full-screen view, opened by an “Open dialog” action.',
     props: [
       text('title', 'Title', 'Dialog'),
+      text('subtitle', 'Subtitle'),
+      select(
+        'presentation',
+        'Presentation',
+        o(
+          ['dialog', 'Centered dialog'],
+          ['side', 'Side sheet'],
+          ['bottom', 'Bottom sheet'],
+          ['fullscreen', 'Full screen'],
+        ),
+        'dialog',
+        'layout',
+      ),
       select(
         'size',
         'Width',
@@ -1426,6 +1464,12 @@ export const BLOCK_DEFINITIONS: readonly BlockDefinition[] = [
         'layout',
       ),
       toggle('closeButton', 'Show close button', true, 'appearance'),
+      toggle(
+        'dismissible',
+        'Close on backdrop click or Esc',
+        true,
+        'behaviour',
+      ),
       select('gap', 'Gap', SPACE_OPTIONS, '4', 'layout'),
     ],
     seed: [['text', { text: 'Dialog content.' }]],
@@ -1462,6 +1506,20 @@ export function canContain(parentType: string, childType: string): boolean {
   if (!parent?.container) return false
   if (parent.accepts && !parent.accepts.includes(childType)) return false
   if (child.parents && !child.parents.includes(parentType)) return false
+  // Table cells repeat for every row: keep them to inline content (no sections, forms or tables).
+  if (
+    parentType === 'table-cell' &&
+    [
+      'section',
+      'form',
+      'table',
+      'repeater',
+      'tabs',
+      'stepper',
+      'accordion',
+    ].includes(childType)
+  )
+    return false
   // Dialogs are page-level overlays.
   return childType !== 'dialog'
 }
@@ -1499,6 +1557,7 @@ export function isFormField(type: string): boolean {
 export type ActionTargetKind =
   | 'field'
   | 'mutation'
+  | 'workflow'
   | 'none'
   | 'page'
   | 'url'
@@ -1507,7 +1566,7 @@ export type ActionTargetKind =
   | 'source'
   | 'collection'
   | 'block'
-export type ActionValueKind = 'none' | 'text' | 'newTab' | 'method'
+export type ActionValueKind = 'none' | 'text' | 'newTab' | 'method' | 'number'
 
 export interface ActionDefinition {
   type: ActionType
@@ -1517,6 +1576,10 @@ export interface ActionDefinition {
   targetLabel?: string
   value: ActionValueKind
   valueLabel?: string
+  /** Labels of the success / failure branches when the step can fail. */
+  outcomes?: [string, string]
+  /** What `{{response}}` holds in the success branch. */
+  responseHint?: string
 }
 
 export const ACTION_DEFINITIONS: readonly ActionDefinition[] = [
@@ -1538,11 +1601,20 @@ export const ACTION_DEFINITIONS: readonly ActionDefinition[] = [
   },
   {
     type: 'showMessage',
-    label: 'Show message',
-    icon: 'chat_bubble',
+    label: 'Show notification',
+    icon: 'notifications',
     target: 'none',
     value: 'text',
-    valueLabel: 'Message',
+    valueLabel: 'Message (supports {{…}})',
+  },
+  {
+    type: 'confirm',
+    label: 'Ask for confirmation',
+    icon: 'help',
+    target: 'none',
+    value: 'text',
+    valueLabel: 'Question (supports {{…}})',
+    outcomes: ['If confirmed', 'If cancelled'],
   },
   {
     type: 'openDialog',
@@ -1593,6 +1665,8 @@ export const ACTION_DEFINITIONS: readonly ActionDefinition[] = [
     targetLabel: 'Endpoint URL',
     value: 'method',
     valueLabel: 'Method',
+    outcomes: ['When it succeeds', 'When it fails'],
+    responseHint: 'the JSON the server returned',
   },
   {
     type: 'saveToCollection',
@@ -1601,6 +1675,8 @@ export const ACTION_DEFINITIONS: readonly ActionDefinition[] = [
     target: 'collection',
     targetLabel: 'Collection',
     value: 'none',
+    outcomes: ['When it is saved', 'When it fails'],
+    responseHint: 'the saved record',
   },
   {
     type: 'clearCollection',
@@ -1609,6 +1685,7 @@ export const ACTION_DEFINITIONS: readonly ActionDefinition[] = [
     target: 'collection',
     targetLabel: 'Collection',
     value: 'none',
+    outcomes: ['When it is cleared', 'When it fails'],
   },
   {
     type: 'refreshData',
@@ -1617,6 +1694,8 @@ export const ACTION_DEFINITIONS: readonly ActionDefinition[] = [
     target: 'source',
     targetLabel: 'Data source',
     value: 'none',
+    outcomes: ['When it has loaded', 'When it fails'],
+    responseHint: 'the loaded rows',
   },
   {
     type: 'resetForm',
@@ -1644,11 +1723,86 @@ export const ACTION_DEFINITIONS: readonly ActionDefinition[] = [
   },
   {
     type: 'callApi',
-    label: 'Call API (mutation)',
+    label: 'Call API',
     icon: 'send',
     target: 'mutation',
     targetLabel: 'Endpoint',
     value: 'none',
+    outcomes: ['When it succeeds', 'When it fails'],
+    responseHint: 'the JSON the API returned',
+  },
+  {
+    type: 'copyText',
+    label: 'Copy to clipboard',
+    icon: 'content_copy',
+    target: 'none',
+    value: 'text',
+    valueLabel: 'Text (supports {{…}})',
+    outcomes: ['When it is copied', 'When it fails'],
+  },
+  {
+    type: 'updateRecord',
+    label: 'Update record',
+    icon: 'edit_note',
+    target: 'collection',
+    targetLabel: 'Collection',
+    value: 'text',
+    valueLabel: 'Record id (e.g. {{row.id}})',
+    outcomes: ['When it is updated', 'When it fails'],
+    responseHint: 'the updated record',
+  },
+  {
+    type: 'deleteRecord',
+    label: 'Delete record',
+    icon: 'delete',
+    target: 'collection',
+    targetLabel: 'Collection',
+    value: 'text',
+    valueLabel: 'Record id (e.g. {{row.id}})',
+    outcomes: ['When it is deleted', 'When it fails'],
+  },
+  {
+    type: 'compute',
+    label: 'Compute value',
+    icon: 'calculate',
+    target: 'none',
+    value: 'none',
+    outcomes: ['Then', 'If it fails'],
+    responseHint: 'the computed value',
+  },
+  {
+    type: 'runWorkflow',
+    label: 'Run workflow',
+    icon: 'account_tree',
+    target: 'workflow',
+    targetLabel: 'Workflow',
+    value: 'none',
+    outcomes: ['When it finishes', 'When it fails'],
+    responseHint: 'the workflow’s output',
+  },
+  {
+    type: 'parallel',
+    label: 'Run in parallel',
+    icon: 'call_split',
+    target: 'none',
+    value: 'none',
+    outcomes: ['When all branches finish', 'When a branch fails'],
+    responseHint: 'the list of branch results',
+  },
+  {
+    type: 'goBack',
+    label: 'Go back',
+    icon: 'arrow_back',
+    target: 'none',
+    value: 'none',
+  },
+  {
+    type: 'wait',
+    label: 'Wait',
+    icon: 'hourglass_top',
+    target: 'none',
+    value: 'number',
+    valueLabel: 'Milliseconds',
   },
 ]
 
@@ -1661,4 +1815,5 @@ export const TRIGGER_LABELS: Record<Trigger, string> = {
   submit: 'On submit',
   change: 'On change',
   load: 'On page load',
+  rowClick: 'On row click',
 }

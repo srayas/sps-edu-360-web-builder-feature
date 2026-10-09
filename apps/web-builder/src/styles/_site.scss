@@ -128,6 +128,87 @@ $token-roles: (
   .wb-scheme-dark { color-scheme: dark; }
   .wb-scheme-system { color-scheme: light dark; }
 
+  // Data tables: alignment, widths, merged cells, tones, formats and row actions.
+  .wb-table .wb-align-center { text-align: center; }
+  .wb-table .wb-align-end { text-align: end; }
+  .wb-table th.wb-align-end .mat-sort-header-container { justify-content: flex-end; }
+  .wb-table th.wb-align-center .mat-sort-header-container { justify-content: center; }
+  @each $name, $width in (xs: 64px, sm: 120px, md: 180px, lg: 260px, xl: 360px) {
+    .wb-table .wb-col-#{$name} { width: $width; min-width: $width; }
+  }
+  .wb-table .wb-col-actions { width: 1%; white-space: nowrap; }
+  .wb-table .wb-cell-hidden { display: none; }
+  .wb-table td.wb-cell-merged { vertical-align: middle; background: color-mix(in oklab, var(--mat-sys-surface-container) 55%, transparent); }
+  .wb-table td.mat-mdc-cell[rowspan] { border-inline: 1px solid var(--mat-sys-outline-variant); }
+  .wb-table .wb-group-row th { border-bottom: 1px solid var(--mat-sys-outline-variant); }
+  .wb-table .wb-th-group { text-align: center; font: var(--mat-sys-label-large); color: var(--mat-sys-on-surface); background: var(--mat-sys-surface-container-low); }
+  .wb-table .wb-th-group + .wb-th-group:not(.wb-th-group-empty) { border-inline-start: 1px solid var(--mat-sys-outline-variant); }
+  .wb-table .wb-th-group-empty { background: transparent; }
+  .wb-table-clickable tr.mat-mdc-row { cursor: pointer; }
+  .wb-table-clickable tr.mat-mdc-row:hover { background: var(--mat-sys-surface-container-low); }
+  $tones: (
+    primary: (var(--mat-sys-primary), var(--mat-sys-primary)),
+    success: (light-dark(#15803d, #4ade80), light-dark(#16a34a, #22c55e)),
+    warning: (light-dark(#b45309, #fbbf24), light-dark(#d97706, #f59e0b)),
+    error: (var(--mat-sys-error), var(--mat-sys-error)),
+    info: (light-dark(#0369a1, #7dd3fc), light-dark(#0284c7, #38bdf8)),
+    muted: (var(--mat-sys-on-surface-variant), var(--mat-sys-outline)),
+  );
+  @each $tone, $colors in $tones {
+    .wb-cell-tone-#{$tone} { color: list.nth($colors, 1); font-weight: 500; }
+    .wb-row-tone-#{$tone} > td { background: color-mix(in oklab, #{list.nth($colors, 2)} 9%, transparent); }
+    .wb-row-tone-#{$tone} > td:first-child { box-shadow: inset 3px 0 0 #{list.nth($colors, 2)}; }
+    .wb-badge.wb-tone-#{$tone} { color: list.nth($colors, 1); background: color-mix(in oklab, #{list.nth($colors, 2)} 14%, transparent); }
+  }
+  .wb-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font: var(--mat-sys-label-medium); white-space: nowrap; }
+  .wb-badge.wb-tone-neutral { color: var(--mat-sys-on-surface); background: var(--mat-sys-surface-container-high); }
+  .wb-bool-yes { color: light-dark(#16a34a, #4ade80); }
+  .wb-bool-no { color: var(--mat-sys-outline); }
+  .wb-cell-image { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; display: block; }
+  .wb-cell-avatar { display: inline-grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%; font: var(--mat-sys-label-small); background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); }
+  .wb-cell-progress { width: 96px; }
+  // Editable cells: compact fields that sit inside a row without changing its height much.
+  // (.wb-table raises specificity above Material's runtime-loaded form-field styles.)
+  .wb-table .wb-cell-field {
+    @include mat.form-field-overrides((container-height: 34px, container-vertical-padding: 5px, outlined-container-shape: 8px));
+    @include mat.select-overrides((trigger-text-size: var(--mat-sys-body-medium-size)));
+    width: 100%;
+    min-width: 88px;
+    font: var(--mat-sys-body-medium);
+    // The form-field infix defaults to 180px wide; in a cell the column width decides.
+    .mat-mdc-form-field-infix { width: auto; min-width: 0; }
+  }
+  .wb-table .wb-cell-number { max-width: 120px; }
+  .wb-cell-number input { text-align: end; }
+  .wb-cell-error { display: block; margin-block-start: 2px; font: var(--mat-sys-body-small); color: var(--mat-sys-error); }
+  .wb-row-actions { display: inline-flex; align-items: center; gap: 2px; }
+  .wb-danger { --mat-icon-button-icon-color: var(--mat-sys-error); --mat-button-text-label-text-color: var(--mat-sys-error); }
+
+  // Overlays: dialog presentations, notifications and confirmations (Material tokens per panel).
+  .wb-dialog-side { --mat-dialog-container-shape: 20px 0 0 20px; --mat-dialog-container-max-width: 100vw; }
+  .wb-dialog-side .mat-mdc-dialog-content { max-height: none; flex: 1 1 auto; }
+  .wb-dialog-bottom { --mat-dialog-container-shape: 24px 24px 0 0; --mat-dialog-container-max-width: 100vw; }
+  .wb-dialog-fullscreen { --mat-dialog-container-shape: 0; --mat-dialog-container-max-width: 100vw; }
+  .wb-dialog-fullscreen .mat-mdc-dialog-content { max-height: none; }
+  .wb-button-spinner { display: inline-block; margin-inline-end: 8px; vertical-align: middle; --mat-progress-spinner-active-indicator-color: currentColor; }
+  .mat-mdc-icon-button .mat-mdc-progress-spinner { --mat-progress-spinner-active-indicator-color: currentColor; }
+  .wb-dialog-subtitle { display: block; margin-top: 2px; }
+  .wb-sheet-handle { display: block; width: 36px; height: 4px; margin: 10px auto 0; border-radius: 999px; background: var(--mat-sys-outline); }
+  .wb-toast {
+    --mat-snack-bar-container-color: var(--mat-sys-surface-container-lowest);
+    --mat-snack-bar-supporting-text-color: var(--mat-sys-on-surface);
+    --mat-snack-bar-container-shape: 14px;
+  }
+  .wb-toast-body { display: flex; align-items: flex-start; gap: 12px; min-width: min(360px, calc(100vw - 48px)); max-width: 440px; padding: 2px 0; }
+  .wb-toast-message { color: var(--mat-sys-on-surface-variant); overflow-wrap: anywhere; }
+  .wb-toast-body .mat-font-title-sm + .wb-toast-message { margin-top: 0; }
+  .wb-toast-icon { flex-shrink: 0; margin-top: 1px; }
+  .wb-toast-icon-info { color: var(--mat-sys-primary); }
+  .wb-toast-icon-success { color: light-dark(#15803d, #4ade80); }
+  .wb-toast-icon-warning { color: light-dark(#b45309, #fbbf24); }
+  .wb-toast-icon-error { color: var(--mat-sys-error); }
+  .wb-toast-error { --mat-snack-bar-container-color: light-dark(#fff7f7, #2a1215); }
+
   // Modern section surfaces: a neutral canvas with a soft accent glow and faint grid, and a
   // vivid accent gradient band (CTAs). Both follow the site's own palette and colour scheme.
   .wb-surface-glow {

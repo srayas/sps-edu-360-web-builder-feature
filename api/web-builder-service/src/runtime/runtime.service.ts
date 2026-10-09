@@ -178,6 +178,50 @@ export class RuntimeService {
     });
   }
 
+  /** Merges new values into one record (its id and createdAt are kept). */
+  async update(
+    projectId: string,
+    sourceId: string,
+    recordId: string,
+    body: unknown,
+  ): Promise<Row> {
+    await this.source(projectId, sourceId);
+    const changes = this.cleanRow(body);
+    const path = this.file(projectId, sourceId);
+    return this.exclusive(path, async () => {
+      const rows = await this.rows(path);
+      const index = rows.findIndex((row) => String(row.id) === recordId);
+      if (index < 0) throw new NotFoundException('Record not found.');
+      const { id: _id, createdAt: _createdAt, ...values } = changes;
+      void _id;
+      void _createdAt;
+      rows[index] = {
+        ...rows[index],
+        ...values,
+        updatedAt: new Date().toISOString(),
+      };
+      await this.persist(path, rows);
+      return rows[index];
+    });
+  }
+
+  async removeRecord(
+    projectId: string,
+    sourceId: string,
+    recordId: string,
+  ): Promise<{ id: string }> {
+    await this.source(projectId, sourceId);
+    const path = this.file(projectId, sourceId);
+    return this.exclusive(path, async () => {
+      const rows = await this.rows(path);
+      const next = rows.filter((row) => String(row.id) !== recordId);
+      if (next.length === rows.length)
+        throw new NotFoundException('Record not found.');
+      await this.persist(path, next);
+      return { id: recordId };
+    });
+  }
+
   async clear(projectId: string, sourceId: string): Promise<{ cleared: true }> {
     await this.source(projectId, sourceId);
     const path = this.file(projectId, sourceId);

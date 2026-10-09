@@ -53,6 +53,17 @@
   .wb-color-input { flex: 0 0 48px; width: 48px; height: 48px; padding: 2px; border: 1px solid var(--mat-sys-outline-variant); border-radius: var(--mat-sys-corner-extra-small); background: none; cursor: pointer; }
   .wb-swatch-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-inline-end: 8px; vertical-align: middle; border: 1px solid var(--mat-sys-outline-variant); }
 
+  // Actions: step cards and success / error branches
+  .wb-action { border-radius: 12px; background: var(--mat-sys-surface-container-low); border: 1px solid var(--mat-sys-outline-variant); }
+  .wb-action-nested { background: var(--mat-sys-surface-container-lowest); padding: 10px !important; }
+  .wb-branch { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 4px 12px; border-inline-start: 2px solid light-dark(#16a34a, #4ade80); }
+  .wb-branch-error { border-inline-start-color: var(--mat-sys-error); }
+  .wb-branch-parallel { border-inline-start-color: var(--mat-sys-primary); }
+  .wb-branch-parallel .wb-branch-icon { color: var(--mat-sys-primary); }
+  .wb-branch-icon { color: light-dark(#16a34a, #4ade80); }
+  .wb-branch-error .wb-branch-icon { color: var(--mat-sys-error); }
+  .wb-option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
   // Library
   .wb-palette { --mat-expansion-container-background-color: transparent; }
   .wb-palette .mat-expansion-panel-header { padding-inline: 12px; }

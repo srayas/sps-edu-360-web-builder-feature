@@ -11,7 +11,12 @@ import {
   signal,
   untracked,
 } from '@angular/core'
-import { MatSnackBar } from '@angular/material/snack-bar'
+import {
+  MatSnackBar,
+  MatSnackBarHorizontalPosition,
+  MatSnackBarVerticalPosition,
+} from '@angular/material/snack-bar'
+import { ConfirmService } from '@spsedu360/shared-ui'
 import { MatDialog } from '@angular/material/dialog'
 import { readPath, truthy as logicTruthy } from '@spsedu360/json-logic'
 import {
@@ -20,6 +25,7 @@ import {
   BlockLogic,
   DataSource,
   Expr,
+  NotificationSeverity,
   Page,
   PageRule,
   Project,
@@ -35,6 +41,9 @@ import {
   interpolate,
   isFormField,
   newId,
+  parseParamValue,
+  parseServerErrors,
+  setFunctions,
   safeEndpoint,
   safeUrl,
   themeScopeClasses,
@@ -49,7 +58,8 @@ import {
   resolveRequest,
 } from './query-client'
 import { RequestError, RequestQueue } from './request-queue'
-import { narrowed } from './narrow'
+import { narrowed, useLogicVersion } from './narrow'
+import { NotificationData, NotificationToast } from './notification-toast'
 
 export type RuntimeMode = 'edit' | 'preview' | 'live'
 export type Row = Record<string, unknown>
@@ -58,7 +68,48 @@ export type SourceStatus = 'idle' | 'loading' | 'ready' | 'error'
 export interface ActionContext {
   scope: Scope
   form?: FormScope | null
+  /** Results saved by earlier steps (`saveAs`), readable as `{{steps.name}}`; shared by branches. */
+  steps?: Record<string, unknown>
+  /** Workflow call depth (guards against workflows calling each other forever). */
+  depth?: number
 }
+
+interface StepsOutcome {
+  ok: boolean
+  response?: unknown
+}
+
+export interface ActionError {
+  message: string
+  status: number
+  body: unknown
+}
+
+/** Outcome of one step: success with an optional response, or a failure. */
+export interface ActionResult {
+  ok: boolean
+  response?: unknown
+  error?: ActionError
+  /** Failures that need no error notification (e.g. a cancelled confirmation). */
+  quiet?: boolean
+}
+
+export interface NotifyOptions {
+  message: string
+  severity?: NotificationSeverity
+  title?: string
+  /** Seconds; 0 keeps it until dismissed. */
+  duration?: number
+  position?: string
+  actionLabel?: string
+}
+
+const done = (response?: unknown): ActionResult => ({ ok: true, response })
+const failed = (
+  message: string,
+  status = 0,
+  body: unknown = null,
+): ActionResult => ({ ok: false, error: { message, status, body } })
 
 /** Effects of page rules on one block. */
 export interface Overlay {
@@ -119,6 +170,7 @@ export class SiteRuntime {
   private readonly document = inject(DOCUMENT)
   private readonly snack = inject(MatSnackBar)
   private readonly dialog = inject(MatDialog)
+  private readonly confirmService = inject(ConfirmService)
   private readonly injector = inject(Injector)
   private readonly api = inject(BUILDER_CONFIG).apiBaseUrl.replace(/\/+$/, '')
   private readonly queries = new QueryClient()
@@ -184,7 +236,15 @@ export class SiteRuntime {
   })
 
   // 3 + 4. Computed variables and full scope -----------------------------------------------------
+  /** Installs the project's functions (compiled once) whenever they change. */
+  readonly logicVersion = computed(() => {
+    const list = this.project().functions
+    setFunctions(list)
+    return JSON.stringify(list ?? [])
+  })
+
   readonly scope = computed<Scope>(() => {
+    this.logicVersion()
     const inputs = this.inputs()
     const data = this.data()
     const vars: Record<string, unknown> = {
@@ -218,6 +278,7 @@ export class SiteRuntime {
   private readonly bursts = new Map<string, { at: number; count: number }>()
 
   constructor() {
+    useLogicVersion(this.logicVersion)
     const variablesKey = computed(
       () =>
         JSON.stringify(
@@ -606,7 +667,7 @@ export class SiteRuntime {
     }
   }
 
-  private async saveRow(source: DataSource, row: Row): Promise<boolean> {
+  private async saveRow(source: DataSource, row: Row): Promise<ActionResult> {
     if (this.useServer(source)) {
       try {
         const result = (await this.queue.send({
@@ -626,24 +687,241 @@ export class SiteRuntime {
           ...raw,
           [source.id]: [...(raw[source.id] ?? []), result?.data ?? row],
         }))
-        return true
+        return done(result?.data ?? row)
       } catch (error) {
-        this.message(error instanceof Error ? error.message : 'Could not save.')
-        return false
+        return this.requestFailure(error, 'Could not save.')
       }
     }
     const rows = [...(this.raw()[source.id] ?? []), row]
     this.raw.update((raw) => ({ ...raw, [source.id]: rows }))
     if (this.mode() !== 'edit')
       storage.set(this.collectionKey(source.id), JSON.stringify(rows))
-    return true
+    return done(row)
   }
 
-  private async clearCollection(sourceId: string): Promise<boolean> {
+  /** Runs a project workflow with inputs mapped from the caller's scope; returns its output. */
+  private async runWorkflow(
+    action: Action,
+    scope: Scope,
+    context: ActionContext,
+  ): Promise<ActionResult> {
+    const workflow = (this.project().workflows ?? []).find(
+      (item) => item.id === action.target,
+    )
+    if (!workflow) return failed('Choose a workflow to run.')
+    const depth = (context.depth ?? 0) + 1
+    if (depth > 8) return failed('Workflows call each other too deeply.')
+    const input: Record<string, unknown> = {}
+    for (const param of workflow.params) {
+      const raw = action.options?.[`in_${param.name}`] ?? ''
+      const single = /^\s*\{\{\s*([\w.-]+)\s*\}\}\s*$/.exec(raw)
+      input[param.name] =
+        raw.trim() === ''
+          ? parseParamValue(param.defaultValue)
+          : single
+            ? readPath(scope, single[1].split('.'))
+            : parseParamValue(interpolate(raw, scope))
+    }
+    const steps: Record<string, unknown> = {}
+    const inner: ActionContext = {
+      scope: { ...(context.scope ?? {}), input },
+      form: context.form ?? null,
+      steps,
+      depth,
+    }
+    const outcome = await this.runSteps(workflow.steps, inner, 0)
+    if (!outcome.ok) {
+      const error = outcome.response as ActionError | undefined
+      return {
+        ok: false,
+        quiet: true,
+        error: {
+          message: error?.message || `Workflow “${workflow.name}” failed.`,
+          status: error?.status ?? 0,
+          body: error?.body ?? null,
+        },
+      }
+    }
+    if (!workflow.output) return done(outcome.response ?? null)
+    try {
+      return done(
+        compileExpr(workflow.output).evaluator({
+          ...this.scope(),
+          ...inner.scope,
+          steps,
+          response: outcome.response ?? null,
+        }),
+      )
+    } catch (error) {
+      return failed(
+        error instanceof Error
+          ? error.message
+          : `Workflow “${workflow.name}” produced no output.`,
+      )
+    }
+  }
+
+  /**
+   * Changes one field of a row in memory (rows are matched by id, else by identity). Everything
+   * that reads the data — tables, totals, bindings — updates at once. Returns the updated row.
+   */
+  setRowField(
+    sourceId: string,
+    row: Row,
+    field: string,
+    value: unknown,
+  ): Row | null {
+    const rows = this.raw()[sourceId]
+    if (!rows || !field) return null
+    const id = row['id']
+    let index =
+      id !== undefined && id !== null
+        ? rows.findIndex((item) => this.sameId(item, String(id)))
+        : -1
+    if (index < 0) index = rows.indexOf(row)
+    if (index < 0) return null
+    const next: Row = { ...rows[index] }
+    const keys = field.split('.')
+    let node: Record<string, unknown> = next
+    for (const key of keys.slice(0, -1)) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype')
+        return null
+      node[key] =
+        node[key] && typeof node[key] === 'object'
+          ? { ...(node[key] as Record<string, unknown>) }
+          : {}
+      node = node[key] as Record<string, unknown>
+    }
+    const last = keys[keys.length - 1]
+    if (last === '__proto__' || last === 'constructor' || last === 'prototype')
+      return null
+    node[last] = value
+    const copy = [...rows]
+    copy[index] = next
+    this.raw.update((raw) => ({ ...raw, [sourceId]: copy }))
+    return next
+  }
+
+  /** Saves an edited row field to its record: server/browser collections, or in memory for others. */
+  async saveRowField(
+    sourceId: string,
+    row: Row,
+    field: string,
+    value: unknown,
+  ): Promise<ActionResult> {
     const source = this.project().dataSources.find(
       (item) => item.id === sourceId,
     )
-    if (!source) return false
+    if (!source) return failed('This table has no data source to save to.')
+    if (source.kind === 'rest') return done(row)
+    const id = row['id']
+    if (id === undefined || id === null || id === '')
+      return failed('Rows need an id to be saved.')
+    return this.updateRow(source, String(id), { [field]: value })
+  }
+
+  private sameId(row: Row, recordId: string): boolean {
+    return String(row['id'] ?? '') === recordId
+  }
+
+  /** Changes one record of a collection (server collections via PATCH). */
+  private async updateRow(
+    source: DataSource,
+    recordId: string,
+    values: Row,
+  ): Promise<ActionResult> {
+    const current = (this.raw()[source.id] ?? []).find((row) =>
+      this.sameId(row, recordId),
+    )
+    if (!current) return failed('That record no longer exists.')
+    const next: Row = {
+      ...current,
+      ...values,
+      id: current['id'],
+      updatedAt: new Date().toISOString(),
+    }
+    if (this.useServer(source)) {
+      try {
+        const result = (await this.queue.send({
+          id: newId(),
+          url: `${this.collectionUrl(source.id)}/${encodeURIComponent(recordId)}`,
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(values),
+          label: source.name,
+        })) as Row | { data?: Row } | null
+        const saved = (
+          result && typeof result === 'object' && 'data' in result
+            ? (result as { data?: Row }).data
+            : result
+        ) as Row | null
+        Object.assign(next, saved ?? {})
+      } catch (error) {
+        return this.requestFailure(error, 'Could not update the record.')
+      }
+    }
+    const rows = (this.raw()[source.id] ?? []).map((row) =>
+      this.sameId(row, recordId) ? next : row,
+    )
+    this.raw.update((raw) => ({ ...raw, [source.id]: rows }))
+    if (
+      source.kind === 'collection' &&
+      !this.useServer(source) &&
+      this.mode() !== 'edit'
+    )
+      storage.set(this.collectionKey(source.id), JSON.stringify(rows))
+    return done(next)
+  }
+
+  /** Removes one record of a collection (server collections via DELETE). */
+  private async deleteRow(
+    source: DataSource,
+    recordId: string,
+  ): Promise<ActionResult> {
+    const existing = (this.raw()[source.id] ?? []).find((row) =>
+      this.sameId(row, recordId),
+    )
+    if (!existing) return failed('That record no longer exists.')
+    if (this.useServer(source)) {
+      try {
+        await this.queue.send({
+          id: newId(),
+          url: `${this.collectionUrl(source.id)}/${encodeURIComponent(recordId)}`,
+          method: 'DELETE',
+          headers: {},
+          label: source.name,
+        })
+      } catch (error) {
+        return this.requestFailure(error, 'Could not delete the record.')
+      }
+    }
+    const rows = (this.raw()[source.id] ?? []).filter(
+      (row) => !this.sameId(row, recordId),
+    )
+    this.raw.update((raw) => ({ ...raw, [source.id]: rows }))
+    if (
+      source.kind === 'collection' &&
+      !this.useServer(source) &&
+      this.mode() !== 'edit'
+    )
+      storage.set(this.collectionKey(source.id), JSON.stringify(rows))
+    return done(existing)
+  }
+
+  /** Converts a thrown request error into a failed result (keeping status and body). */
+  private requestFailure(error: unknown, fallback: string): ActionResult {
+    if (error instanceof RequestError)
+      return failed(error.message || fallback, error.status, error.body)
+    return failed(
+      error instanceof Error && error.message ? error.message : fallback,
+    )
+  }
+
+  private async clearCollection(sourceId: string): Promise<ActionResult> {
+    const source = this.project().dataSources.find(
+      (item) => item.id === sourceId,
+    )
+    if (!source) return failed('Choose a collection to clear.')
     if (this.useServer(source)) {
       try {
         await this.queue.send({
@@ -653,14 +931,13 @@ export class SiteRuntime {
           headers: {},
           label: source.name,
         })
-      } catch {
-        this.message('Could not clear the records.')
-        return false
+      } catch (error) {
+        return this.requestFailure(error, 'Could not clear the records.')
       }
     } else if (this.mode() !== 'edit')
       storage.set(this.collectionKey(sourceId), '[]')
     this.raw.update((raw) => ({ ...raw, [sourceId]: [] }))
-    return true
+    return done([])
   }
 
   // -------------------------------------------------------------------------------------------
@@ -826,10 +1103,47 @@ export class SiteRuntime {
   // -------------------------------------------------------------------------------------------
 
   message(text: string): void {
-    this.snack.open(text, 'Close', {
-      duration: 4000,
-      panelClass: this.themeClasses().split(' '),
-    })
+    this.notify({ message: text })
+  }
+
+  /** Shows a themed toast notification. */
+  notify(options: NotifyOptions): void {
+    const severity = options.severity ?? 'info'
+    const [vertical, horizontal] = (options.position || 'bottom-center').split(
+      '-',
+    ) as [MatSnackBarVerticalPosition, MatSnackBarHorizontalPosition]
+    const seconds = options.duration ?? (severity === 'error' ? 6 : 4)
+    this.snack.openFromComponent<NotificationToast, NotificationData>(
+      NotificationToast,
+      {
+        data: {
+          severity,
+          title: options.title ?? '',
+          message: options.message,
+          actionLabel: options.actionLabel ?? '',
+        },
+        duration: seconds > 0 ? seconds * 1000 : undefined,
+        verticalPosition: vertical === 'top' ? 'top' : 'bottom',
+        horizontalPosition: [
+          'start',
+          'end',
+          'left',
+          'right',
+          'center',
+        ].includes(horizontal)
+          ? horizontal
+          : 'center',
+        panelClass: [
+          'wb-toast',
+          `wb-toast-${severity}`,
+          ...this.themeClasses().split(' '),
+        ],
+        politeness:
+          severity === 'error' || severity === 'warning'
+            ? 'assertive'
+            : 'polite',
+      },
+    )
   }
 
   /** Runs the actions bound to `trigger` in order. Returns false if one of them failed. */
@@ -839,15 +1153,80 @@ export class SiteRuntime {
     context: ActionContext,
   ): Promise<boolean> {
     if (this.mode() === 'edit') return true
-    for (const action of actions) {
-      if (action.trigger !== trigger) continue
+    const steps = actions.filter((action) => action.trigger === trigger)
+    if (!steps.length) return true
+    return (
+      await this.runSteps(steps, { ...context, steps: context.steps ?? {} }, 0)
+    ).ok
+  }
+
+  /**
+   * Runs steps in order. After a step succeeds its `onSuccess` steps run with `{{response}}`;
+   * when it fails its `onError` steps run with `{{error}}` (or an error notification is shown)
+   * and the chain stops, unless the step is set to continue on error.
+   */
+  private async runSteps(
+    steps: readonly Action[],
+    context: ActionContext,
+    depth: number,
+  ): Promise<StepsOutcome> {
+    if (depth > 6) return { ok: false }
+    let last: unknown = null
+    for (const action of steps) {
       const scope = this.actionScope(context)
       if (action.when && !logicTruthy(evaluateExpr(action.when, scope, false)))
         continue
-      const ok = await this.execute(action, context)
-      if (!ok) return false
+      let result: ActionResult
+      try {
+        result = await this.execute(action, context)
+      } catch (error) {
+        result = this.requestFailure(error, 'Something went wrong.')
+      }
+      if (result.ok) {
+        last = result.response ?? null
+        const saveAs = action.options?.['saveAs']
+        if (saveAs && context.steps) context.steps[saveAs] = last
+        if (action.onSuccess?.length) {
+          const nested = await this.runSteps(
+            action.onSuccess,
+            { ...context, scope: { ...context.scope, response: last } },
+            depth + 1,
+          )
+          if (!nested.ok) return { ok: false }
+          if (nested.response !== undefined && nested.response !== null)
+            last = nested.response
+        }
+        continue
+      }
+      const error = result.error ?? {
+        message: 'Something went wrong.',
+        status: 0,
+        body: null,
+      }
+      // Field errors from the server are shown on the matching fields of the form.
+      let matchedFields = 0
+      if (context.form && error.body) {
+        const parsed = parseServerErrors(error.body)
+        matchedFields = context.form.setServerErrors(parsed.fields)
+      }
+      if (action.onError?.length) {
+        await this.runSteps(
+          action.onError,
+          { ...context, scope: { ...context.scope, error } },
+          depth + 1,
+        )
+      } else if (!result.quiet) {
+        this.notify({
+          severity: 'error',
+          message: matchedFields
+            ? `${error.message} Check the highlighted fields.`
+            : error.message,
+        })
+      }
+      if (action.options?.['continueOnError'] !== 'true')
+        return { ok: false, response: error }
     }
-    return true
+    return { ok: true, response: last }
   }
 
   hasActions(actions: readonly Action[], trigger: Trigger): boolean {
@@ -855,56 +1234,92 @@ export class SiteRuntime {
   }
 
   private actionScope(context: ActionContext): Scope {
-    const base = { ...this.scope(), ...context.scope }
+    const base = {
+      ...this.scope(),
+      ...context.scope,
+      steps: context.steps ?? {},
+    }
     return context.form ? { ...base, form: context.form.values() } : base
   }
 
   private async execute(
     action: Action,
     context: ActionContext,
-  ): Promise<boolean> {
+  ): Promise<ActionResult> {
     const scope = this.actionScope(context)
     const text = (value: string) => interpolate(value, scope)
+    const options = action.options ?? {}
     switch (action.type) {
       case 'navigate': {
-        if (!this.project().pages.some((page) => page.id === action.target)) {
-          this.message('That page no longer exists.')
-          return false
-        }
+        if (!this.project().pages.some((page) => page.id === action.target))
+          return failed('That page no longer exists.')
         this.navigateHandler(action.target)
-        return true
+        return done()
       }
       case 'openUrl': {
         const url = safeUrl(text(action.target))
-        if (!url) {
-          this.message('This link is not allowed.')
-          return false
+        if (!url) return failed('This link is not allowed.')
+        if (url.startsWith('#')) {
+          this.scrollToAnchor(url.slice(1))
+          return done()
         }
-        if (url.startsWith('#')) return this.scrollToAnchor(url.slice(1))
         this.document.defaultView?.open(
           url,
           action.value === 'same' ? '_self' : '_blank',
           'noopener',
         )
-        return true
+        return done()
       }
       case 'showMessage':
-        this.message(text(action.value))
-        return true
+        this.notify({
+          message: text(action.value),
+          severity: (['info', 'success', 'warning', 'error'].includes(
+            options['severity'],
+          )
+            ? options['severity']
+            : 'info') as NotificationSeverity,
+          title: text(options['title'] ?? ''),
+          duration:
+            options['duration'] === undefined || options['duration'] === ''
+              ? undefined
+              : Number(options['duration']),
+          position: options['position'],
+          actionLabel: options['actionLabel'],
+        })
+        return done()
+      case 'confirm': {
+        const confirmed = await this.confirmService.confirm({
+          title: text(options['title'] || 'Are you sure?'),
+          message: text(action.value),
+          confirmText: options['confirmLabel'] || 'Confirm',
+          cancelText: options['cancelLabel'] || 'Cancel',
+          destructive: options['danger'] === 'true',
+          panelClass: ['wb-confirm-panel', ...this.themeClasses().split(' ')],
+        })
+        return confirmed
+          ? done(true)
+          : {
+              ok: false,
+              quiet: true,
+              error: { message: 'Cancelled', status: 0, body: null },
+            }
+      }
       case 'openDialog':
         return this.openDialog(action.target, scope)
+          ? done()
+          : failed('That dialog is not on this page.')
       case 'closeDialog':
         this.dialog.openDialogs.at(-1)?.close()
-        return true
+        return done()
       case 'setVariable':
         this.setValue(action.target, text(action.value))
-        return true
+        return done()
       case 'toggleVariable':
         this.setValue(
           action.target,
           truthy(this.value(action.target)) ? 'false' : 'true',
         )
-        return true
+        return done()
       case 'incrementVariable': {
         const amount = Number(text(action.value || '1'))
         this.setValue(
@@ -914,7 +1329,7 @@ export class SiteRuntime {
               (Number.isFinite(amount) ? amount : 1),
           ),
         )
-        return true
+        return done()
       }
       case 'setField': {
         const single = /^\s*\{\{\s*([\w.-]+)\s*\}\}\s*$/.exec(action.value)
@@ -922,21 +1337,18 @@ export class SiteRuntime {
           action.target,
           single ? readPath(scope, single[1].split('.')) : text(action.value),
         )
-        return true
+        return done()
       }
       case 'submitForm':
         return this.submit(action, scope, context)
       case 'callApi':
         return this.callApi(action.target, scope)
       case 'saveToCollection': {
-        if (!context.form) return true
+        if (!context.form) return done()
         const source = this.project().dataSources.find(
           (item) => item.id === action.target && item.kind === 'collection',
         )
-        if (!source) {
-          this.message('Choose a collection for this form.')
-          return false
-        }
+        if (!source) return failed('Choose a collection for this form.')
         return this.saveRow(source, {
           id: newId(),
           ...context.form.values(),
@@ -945,17 +1357,91 @@ export class SiteRuntime {
       }
       case 'clearCollection':
         return this.clearCollection(action.target)
-      case 'refreshData':
-        return this.load(action.target, true)
+      case 'refreshData': {
+        const ok = await this.load(action.target, true)
+        return ok
+          ? done(this.rowsFor(action.target))
+          : failed(this.errors()[action.target] || 'Could not load the data.')
+      }
       case 'resetForm':
         context.form?.reset()
-        return true
+        return done()
       case 'scrollTo': {
         const element = this.document.querySelector(
           `.wb-el-${CSS.escape(action.target)}`,
         )
         element?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        return true
+        return done()
+      }
+      case 'copyText': {
+        const value = text(action.value)
+        try {
+          await this.document.defaultView?.navigator.clipboard.writeText(value)
+          return done(value)
+        } catch {
+          return failed('Copying is not allowed here.')
+        }
+      }
+      case 'updateRecord':
+      case 'deleteRecord': {
+        const source = this.project().dataSources.find(
+          (item) => item.id === action.target && item.kind !== 'rest',
+        )
+        if (!source) return failed('Choose a collection for this action.')
+        const recordId = text(action.value || '{{row.id}}').trim()
+        if (!recordId) return failed('This row has no id.')
+        if (action.type === 'deleteRecord')
+          return this.deleteRow(source, recordId)
+        if (!context.form)
+          return failed(
+            'Put “Update record” on a form’s submit so the new values come from its fields.',
+          )
+        return this.updateRow(source, recordId, context.form.values())
+      }
+      case 'compute': {
+        if (!action.expr) return done(null)
+        try {
+          return done(compileExpr(action.expr).evaluator(scope))
+        } catch (error) {
+          return failed(
+            error instanceof Error ? error.message : 'The calculation failed.',
+          )
+        }
+      }
+      case 'parallel': {
+        const branches = action.branches ?? []
+        // Every branch starts at once; each runs its own steps in order. Saved results are shared.
+        const outcomes = await Promise.all(
+          branches.map((branch) => this.runSteps(branch, { ...context }, 1)),
+        )
+        const responses = outcomes.map((outcome) => outcome.response ?? null)
+        if (
+          options['mode'] !== 'settled' &&
+          outcomes.some((outcome) => !outcome.ok)
+        )
+          return {
+            ok: false,
+            quiet: true,
+            error: {
+              message: 'A parallel branch failed.',
+              status: 0,
+              body: responses,
+            },
+          }
+        return done(responses)
+      }
+      case 'runWorkflow':
+        return this.runWorkflow(action, scope, context)
+      case 'goBack':
+        this.document.defaultView?.history.back()
+        return done()
+      case 'wait': {
+        const ms = Math.min(
+          Math.max(Number(text(action.value)) || 0, 0),
+          30_000,
+        )
+        await new Promise((resolve) => setTimeout(resolve, ms))
+        return done()
       }
     }
   }
@@ -968,26 +1454,21 @@ export class SiteRuntime {
   }
 
   /** Sends a mutation data source through the request queue (retries, offline outbox). */
-  private async callApi(sourceId: string, scope: Scope): Promise<boolean> {
+  private async callApi(sourceId: string, scope: Scope): Promise<ActionResult> {
     const source = this.project().dataSources.find(
       (item) => item.id === sourceId,
     )
-    if (!source || source.kind !== 'rest') {
-      this.message('Choose an API endpoint for this action.')
-      return false
-    }
+    if (!source || source.kind !== 'rest')
+      return failed('Choose an API endpoint for this action.')
     let request
     try {
       request = resolveRequest(source, scope)
     } catch {
       request = null
     }
-    if (!request) {
-      this.message('The endpoint URL or body is not valid.')
-      return false
-    }
+    if (!request) return failed('The endpoint URL or body is not valid.')
     try {
-      await this.queue.send({
+      const response = await this.queue.send({
         id: newId(),
         url: request.url,
         method: request.method,
@@ -996,12 +1477,9 @@ export class SiteRuntime {
         label: source.name,
       })
       this.queries.invalidate()
-      return true
+      return done(response)
     } catch (error) {
-      this.message(
-        error instanceof Error ? error.message : 'The request failed.',
-      )
-      return false
+      return this.requestFailure(error, 'The request failed.')
     }
   }
 
@@ -1009,15 +1487,13 @@ export class SiteRuntime {
     action: Action,
     scope: Scope,
     context: ActionContext,
-  ): Promise<boolean> {
-    if (!context.form) return true
+  ): Promise<ActionResult> {
+    if (!context.form) return done()
     const endpoint = safeEndpoint(interpolate(action.target, scope))
-    if (!endpoint) {
-      this.message('Form endpoints must use https or a same-site path.')
-      return false
-    }
+    if (!endpoint)
+      return failed('Form endpoints must use https or a same-site path.')
     try {
-      await this.queue.send({
+      const response = await this.queue.send({
         id: newId(),
         url: endpoint,
         method: action.value === 'PUT' ? 'PUT' : 'POST',
@@ -1025,32 +1501,57 @@ export class SiteRuntime {
         body: JSON.stringify(context.form.values()),
         label: 'form',
       })
-      return true
+      return done(response)
     } catch (error) {
-      this.message(
-        error instanceof RequestError && error.message
-          ? error.message
-          : 'Sorry, the form could not be sent. Please try again.',
+      return this.requestFailure(
+        error,
+        'Sorry, the form could not be sent. Please try again.',
       )
-      return false
     }
   }
 
   private openDialog(blockId: string, scope: Scope): boolean {
     const block = findBlock(this.page().blocks, blockId)
-    if (!block || block.type !== 'dialog' || !DIALOG_HOST.component) {
-      this.message('That dialog is not on this page.')
+    if (!block || block.type !== 'dialog' || !DIALOG_HOST.component)
       return false
+    const size = String(block.props['size'] || 'md')
+    const presentation = String(block.props['presentation'] || 'dialog')
+    const widths: Record<string, Record<string, string>> = {
+      dialog: { sm: '420px', md: '560px', lg: '800px' },
+      side: { sm: '360px', md: '480px', lg: '640px' },
+      bottom: { sm: '560px', md: '720px', lg: '960px' },
     }
-    const width =
-      { sm: '420px', md: '560px', lg: '800px' }[String(block.props['size'])] ??
-      '560px'
+    const config =
+      presentation === 'side'
+        ? {
+            width: widths['side'][size] ?? '480px',
+            maxWidth: '100vw',
+            height: '100dvh',
+            position: { right: '0', top: '0' },
+          }
+        : presentation === 'bottom'
+          ? {
+              width: widths['bottom'][size] ?? '720px',
+              maxWidth: '100vw',
+              maxHeight: '85dvh',
+              position: { bottom: '0' },
+            }
+          : presentation === 'fullscreen'
+            ? { width: '100vw', maxWidth: '100vw', height: '100dvh' }
+            : {
+                width: widths['dialog'][size] ?? '560px',
+                maxWidth: 'calc(100vw - 32px)',
+              }
     this.dialog.open(DIALOG_HOST.component, {
       data: { block, scope },
       injector: this.injector,
-      panelClass: ['wb-dialog-panel', ...this.themeClasses().split(' ')],
-      width,
-      maxWidth: 'calc(100vw - 32px)',
+      panelClass: [
+        'wb-dialog-panel',
+        `wb-dialog-${presentation}`,
+        ...this.themeClasses().split(' '),
+      ],
+      ...config,
+      disableClose: block.props['dismissible'] === false,
       autoFocus: 'first-tabbable',
       ariaLabel: String(block.props['title'] ?? ''),
     })

@@ -46,6 +46,7 @@
               @for (prop of section.props; track prop.key) { <wb-prop-field [prop]="prop" [block]="block" /> }
             </section>
           }
+          @if (block.type === 'table') { <wb-table-panel [block]="block" /> }
         </div>
       </mat-tab>
 
@@ -117,6 +118,10 @@
         <ng-template mat-tab-label>Logic @if (hasLogic()) { <span class="wb-dot wb-bg-tertiary-container" aria-label="has logic"></span> }</ng-template>
         <ng-template matTabContent>
         <div class="ui-column ui-gap-4 ui-p-3 ui-fade-in">
+          @if (isField(block)) {
+            <wb-validation-panel [block]="block" />
+            <mat-divider />
+          }
           <wb-block-logic-panel [block]="block" />
           <mat-divider />
           <h3 class="mat-font-title-sm ui-m-0">Actions</h3>

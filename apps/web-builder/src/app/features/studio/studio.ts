@@ -47,7 +47,7 @@ import { PagesPanel } from './pages-panel'
 import { DataPanel } from './data-panel'
 import { ThemePanel } from './theme-panel'
 import { Inspector } from './inspector'
-import { RulesPanel } from './logic/rules-panel'
+import { LogicPanel } from './logic/logic-panel'
 
 /** Connects the renderer's drag-and-drop and selection to the studio store. */
 class StudioBridge implements EditorBridge {
@@ -141,7 +141,7 @@ const LEFT_TABS: LeftTab[] = [
     LayersPanel,
     PagesPanel,
     DataPanel,
-    RulesPanel,
+    LogicPanel,
     Skeleton,
     ThemePanel,
     Inspector,

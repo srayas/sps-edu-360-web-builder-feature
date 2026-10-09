@@ -12,7 +12,7 @@ import {
 } from '@spsedu360/json-logic'
 import { fieldKey } from './expressions'
 import { isFormField } from './registry'
-import type { Block, Expr } from './types'
+import type { Block, ExecutionParam, Expr, LogicFunction } from './types'
 
 export { logic }
 export { templateToRule } from '@spsedu360/json-logic'
@@ -144,4 +144,118 @@ export function findValueCycles(
   }
   for (const name of graph.keys()) visit(name)
   return cycles
+}
+
+// ---------------------------------------------------------------------------------------------
+// Functions: {"fn": ["name", …args]} calls a project function. Bodies are compiled once when the
+// project's functions change; results are memoized per argument list (functions are pure).
+// ---------------------------------------------------------------------------------------------
+
+interface RegisteredFunction {
+  params: ExecutionParam[]
+  evaluate: Evaluator
+}
+
+const functions = new Map<string, RegisteredFunction>()
+const memo = new Map<string, unknown>()
+const MEMO_LIMIT = 2000
+let callDepth = 0
+let functionsKey = ''
+
+export const FUNCTION_NAME = /^[a-zA-Z_][\w]{0,40}$/
+
+/** Parses a parameter default: numbers, booleans, null and JSON stay typed, the rest is text. */
+export function parseParamValue(text: string | undefined): unknown {
+  if (text === undefined) return null
+  const trimmed = text.trim()
+  if (trimmed === '') return null
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return Number(trimmed)
+  if (trimmed === 'true' || trimmed === 'false') return trimmed === 'true'
+  if (trimmed === 'null') return null
+  if (/^[[{"]/.test(trimmed)) {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return text
+    }
+  }
+  return text
+}
+
+/** Installs the project's functions (no-op when they did not change). Returns true if they changed. */
+export function setFunctions(
+  list: readonly LogicFunction[] | undefined,
+): boolean {
+  const key = JSON.stringify(list ?? [])
+  if (key === functionsKey) return false
+  functionsKey = key
+  functions.clear()
+  memo.clear()
+  for (const fn of list ?? []) {
+    if (!FUNCTION_NAME.test(fn.name)) continue
+    try {
+      functions.set(fn.name, {
+        params: fn.params,
+        evaluate: compileExpr(fn.body).evaluator,
+      })
+    } catch {
+      /* invalid bodies are reported in the studio; calls fail with an unknown-function error */
+    }
+  }
+  return true
+}
+
+export function functionNames(): string[] {
+  return [...functions.keys()]
+}
+
+/** Calls a project function with positional arguments. */
+export function callFunction(name: string, args: unknown[]): unknown {
+  const fn = functions.get(name)
+  if (!fn) throw new LogicError(`Unknown function "${name}".`)
+  let key = ''
+  try {
+    key = name + '\u0000' + JSON.stringify(args)
+  } catch {
+    key = ''
+  }
+  if (key && key.length < 4000 && memo.has(key)) return memo.get(key)
+  if (callDepth >= 32)
+    throw new LogicError('Functions call each other too deeply.')
+  const scope: Record<string, unknown> = { args }
+  fn.params.forEach((param, index) => {
+    scope[param.name] =
+      args[index] !== undefined && args[index] !== null
+        ? args[index]
+        : parseParamValue(param.defaultValue)
+  })
+  callDepth++
+  let result: unknown
+  try {
+    result = fn.evaluate(scope)
+  } finally {
+    callDepth--
+  }
+  if (key && key.length < 4000) {
+    if (memo.size >= MEMO_LIMIT) memo.delete(memo.keys().next().value as string)
+    memo.set(key, result)
+  }
+  return result
+}
+
+logic.addOperator('fn', {
+  fn: (name: unknown, ...args: unknown[]) => callFunction(String(name), args),
+  pure: false,
+})
+
+/** `{"fn": [name, …]}` call shape (used by the studio's function picker). */
+export function functionCall(
+  rule: unknown,
+): { name: string; args: unknown[] } | null {
+  if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return null
+  const keys = Object.keys(rule)
+  if (keys.length !== 1 || keys[0] !== 'fn') return null
+  const args = (rule as Record<string, unknown>)['fn']
+  if (!Array.isArray(args) || typeof args[0] !== 'string') return null
+  return { name: args[0], args: args.slice(1) }
 }

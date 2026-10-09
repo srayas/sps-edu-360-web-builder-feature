@@ -12,6 +12,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { MatChipsModule } from '@angular/material/chips'
 import { MatDividerModule } from '@angular/material/divider'
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner'
 import {
   Block,
   Scope,
@@ -35,6 +36,7 @@ const APPEARANCES: readonly string[] = [
 @Component({
   selector: 'wb-content-block',
   imports: [
+    MatProgressSpinnerModule,
     MatButtonModule,
     MatIconModule,
     MatTooltipModule,
@@ -51,6 +53,13 @@ export class ContentBlock {
 
   readonly runtime = inject(SiteRuntime)
   private readonly form = inject(FormScope, { optional: true })
+  /** True while this button's actions run (or its form submits): shows progress, blocks repeats. */
+  readonly busy = signal(false)
+  readonly working = computed(
+    () =>
+      this.busy() ||
+      (this.block().props['htmlType'] === 'submit' && !!this.form?.busy()),
+  )
   private readonly sanitizer = inject(DomSanitizer)
 
   readonly classes = computed(() => blockClasses(this.block()))
@@ -154,10 +163,11 @@ export class ContentBlock {
         block.props['htmlType'] !== 'reset'
       )
         event.preventDefault()
-      void this.runtime.run(block.actions, 'click', {
-        scope: this.scope(),
-        form: this.form,
-      })
+      if (this.busy()) return
+      this.busy.set(true)
+      void this.runtime
+        .run(block.actions, 'click', { scope: this.scope(), form: this.form })
+        .finally(() => this.busy.set(false))
     }
   }
 }

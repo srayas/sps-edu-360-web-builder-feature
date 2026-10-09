@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   output,
   signal,
@@ -13,13 +14,17 @@ import { MatInputModule } from '@angular/material/input'
 import { MatIconModule } from '@angular/material/icon'
 import { MatMenuModule } from '@angular/material/menu'
 import { MatTooltipModule } from '@angular/material/tooltip'
+import { MatSelectModule } from '@angular/material/select'
 import {
   ConditionGroup,
   Expr,
   evaluateExpr,
   exprToRule,
+  functionCall,
+  parseParamValue,
   validateExpr,
 } from '../../../core/model'
+import { BuilderStore } from '../builder-store'
 import { ConditionGroupEditor } from './condition-group-editor'
 import { PathOption } from './scope-paths'
 
@@ -39,6 +44,7 @@ export type ExprPurpose = 'condition' | 'value' | 'filter'
     MatIconModule,
     MatMenuModule,
     MatTooltipModule,
+    MatSelectModule,
     ConditionGroupEditor,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -47,7 +53,7 @@ export type ExprPurpose = 'condition' | 'value' | 'filter'
     <div class="ui-column ui-gap-2">
       <div class="ui-row ui-align-center ui-gap-2">
         <mat-button-toggle-group
-          [value]="e.kind"
+          [value]="mode()"
           (change)="switchKind($event.value)"
           hideSingleSelectionIndicator
           aria-label="Editor mode"
@@ -59,6 +65,9 @@ export type ExprPurpose = 'condition' | 'value' | 'filter'
           @if (purpose() === 'value') {
             <mat-button-toggle value="template">Text</mat-button-toggle>
             <mat-button-toggle value="conditions">Yes/No</mat-button-toggle>
+          }
+          @if (functions().length && purpose() !== 'filter') {
+            <mat-button-toggle value="function">Function</mat-button-toggle>
           }
           <mat-button-toggle value="rule">JSON</mat-button-toggle>
         </mat-button-toggle-group>
@@ -76,84 +85,140 @@ export type ExprPurpose = 'condition' | 'value' | 'filter'
         }
       </div>
 
-      @switch (e.kind) {
-        @case ('conditions') {
-          <wb-condition-group-editor
-            [group]="e.group"
-            [paths]="paths()"
-            [valuePaths]="valuePaths()"
-            [rowMode]="purpose() === 'filter'"
-            (groupChange)="emitGroup($event)"
-          />
-        }
-        @case ('template') {
+      @if (mode() === 'function') {
+        @let call = fnCall();
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Function</mat-label>
+          <select
+            matNativeControl
+            [value]="call?.name ?? ''"
+            (change)="pickFunction($any($event.target).value)"
+          >
+            @for (fn of functions(); track fn.id) {
+              <option [value]="fn.name">
+                {{ fn.name }}({{ paramList(fn.params) }})
+              </option>
+            }
+          </select>
+        </mat-form-field>
+        @for (param of fnParams(); track param.name; let i = $index) {
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Value</mat-label>
-            <textarea
+            <mat-label>{{ param.name }}</mat-label>
+            <input
               matInput
-              rows="2"
-              [value]="e.text"
-              (input)="
-                exprChange.emit({
-                  kind: 'template',
-                  text: $any($event.target).value,
-                })
+              [value]="argText(call?.args?.[i])"
+              [placeholder]="
+                param.defaultValue
+                  ? 'default ' + param.defaultValue
+                  : 'value or {{path}}'
               "
-              placeholder="Total: {{ '{{fields.qty}}' }}"
-            ></textarea>
+              (change)="setArg(i, $any($event.target).value)"
+            />
             <button
               matIconButton
               matSuffix
               type="button"
-              [matMenuTriggerFor]="insert"
+              [matMenuTriggerFor]="argMenu"
+              [matMenuTriggerData]="{ index: i }"
               aria-label="Insert a value"
             >
               <mat-icon>add_circle</mat-icon>
             </button>
-            <mat-hint
-              >Type text and insert values with ⊕. A single value keeps its type
-              (number, list…).</mat-hint
-            >
           </mat-form-field>
-          <mat-menu #insert="matMenu">
-            @for (option of paths(); track option.path) {
+        }
+        <mat-menu #argMenu="matMenu">
+          <ng-template matMenuContent let-index="index">
+            @for (path of paths(); track path.path) {
               <button
                 mat-menu-item
-                (click)="
-                  exprChange.emit({
-                    kind: 'template',
-                    text: e.text + '{{' + option.path + '}}',
-                  })
-                "
+                (click)="setArg(index, '{{' + path.path + '}}')"
               >
-                <span class="wb-logic-chip">{{ option.group }}</span>
-                {{ option.label }}
+                <span class="wb-logic-chip">{{ path.group }}</span>
+                {{ path.label }}
               </button>
             }
-          </mat-menu>
-        }
-        @case ('rule') {
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>JSON Logic</mat-label>
-            <textarea
-              matInput
-              rows="6"
-              class="wb-mono"
-              [value]="json()"
-              (change)="setJson($any($event.target).value)"
-              spellcheck="false"
-            ></textarea>
-            @if (jsonError()) {
-              <mat-hint class="mat-text-error">{{ jsonError() }}</mat-hint>
-            } @else {
-              <mat-hint
-                >e.g.
-                {{
-                  '{"*": [{"var": "fields.qty"}, {"var": "fields.price"}]}'
-                }}</mat-hint
+          </ng-template>
+        </mat-menu>
+      } @else {
+        @switch (e.kind) {
+          @case ('conditions') {
+            <wb-condition-group-editor
+              [group]="e.group"
+              [paths]="paths()"
+              [valuePaths]="valuePaths()"
+              [rowMode]="purpose() === 'filter'"
+              (groupChange)="emitGroup($event)"
+            />
+          }
+          @case ('template') {
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Value</mat-label>
+              <textarea
+                matInput
+                rows="2"
+                [value]="e.text"
+                (input)="
+                  exprChange.emit({
+                    kind: 'template',
+                    text: $any($event.target).value,
+                  })
+                "
+                placeholder="Total: {{ '{{fields.qty}}' }}"
+              ></textarea>
+              <button
+                matIconButton
+                matSuffix
+                type="button"
+                [matMenuTriggerFor]="insert"
+                aria-label="Insert a value"
               >
-            }
-          </mat-form-field>
+                <mat-icon>add_circle</mat-icon>
+              </button>
+              <mat-hint
+                >Type text and insert values with ⊕. A single value keeps its
+                type (number, list…).</mat-hint
+              >
+            </mat-form-field>
+            <mat-menu #insert="matMenu">
+              @for (option of paths(); track option.path) {
+                <button
+                  mat-menu-item
+                  (click)="
+                    exprChange.emit({
+                      kind: 'template',
+                      text: e.text + '{{' + option.path + '}}',
+                    })
+                  "
+                >
+                  <span class="wb-logic-chip">{{ option.group }}</span>
+                  {{ option.label }}
+                </button>
+              }
+            </mat-menu>
+          }
+          @case ('rule') {
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>JSON Logic</mat-label>
+              <textarea
+                matInput
+                rows="6"
+                class="wb-mono"
+                [value]="json()"
+                (change)="setJson($any($event.target).value)"
+                spellcheck="false"
+              ></textarea>
+              @if (jsonError()) {
+                <mat-hint class="mat-text-error">{{ jsonError() }}</mat-hint>
+              } @else {
+                <mat-hint
+                  >e.g.
+                  {{
+                    '{"*": [{"var": "fields.qty"}, {"var": "fields.price"}]}'
+                  }}</mat-hint
+                >
+              }
+            </mat-form-field>
+          }
         }
       }
 
@@ -181,6 +246,67 @@ export class ExprEditor {
   readonly scope = input<unknown>({})
   readonly clearable = input(true)
   readonly exprChange = output<Expr | undefined>()
+
+  private readonly store = inject(BuilderStore, { optional: true })
+  readonly functions = computed(() => this.store?.project().functions ?? [])
+  /** The editing mode: the stored kind, or "function" for a {"fn": …} rule. */
+  readonly mode = computed(() => {
+    const expr = this.current()
+    return expr.kind === 'rule' &&
+      functionCall(expr.rule) &&
+      this.functions().length
+      ? 'function'
+      : expr.kind
+  })
+  readonly fnCall = computed(() => {
+    const expr = this.current()
+    return expr.kind === 'rule' ? functionCall(expr.rule) : null
+  })
+  readonly fnParams = computed(
+    () =>
+      this.functions().find((fn) => fn.name === this.fnCall()?.name)?.params ??
+      [],
+  )
+
+  paramList(params: { name: string }[]): string {
+    return params.map((param) => param.name).join(', ')
+  }
+
+  /** `{"var": "a.b"}` shows as {{a.b}}; literals as text / JSON. */
+  argText(arg: unknown): string {
+    if (
+      arg &&
+      typeof arg === 'object' &&
+      !Array.isArray(arg) &&
+      Object.keys(arg).length === 1 &&
+      'var' in arg
+    )
+      return `{{${(arg as { var: unknown }).var}}}`
+    if (arg === undefined || arg === null) return ''
+    return typeof arg === 'string' ? arg : JSON.stringify(arg)
+  }
+
+  pickFunction(name: string): void {
+    const fn = this.functions().find((item) => item.name === name)
+    this.exprChange.emit({
+      kind: 'rule',
+      rule: { fn: [name, ...(fn?.params ?? []).map(() => null)] },
+    })
+  }
+
+  setArg(index: number, text: string): void {
+    const call = this.fnCall()
+    if (!call) return
+    const args = [...call.args]
+    while (args.length < this.fnParams().length) args.push(null)
+    const path = /^\s*\{\{\s*([\w.-]+)\s*\}\}\s*$/.exec(text)
+    const value = path ? { var: path[1] } : parseParamValue(text)
+    args[index] =
+      value !== null && typeof value === 'object' && !path
+        ? { preserve: value }
+        : value
+    this.exprChange.emit({ kind: 'rule', rule: { fn: [call.name, ...args] } })
+  }
 
   readonly jsonError = signal('')
   readonly current = computed<Expr>(() => this.expr() ?? this.empty())
@@ -214,8 +340,12 @@ export class ExprEditor {
   }
 
   /** Switching to JSON keeps the meaning (converted rule); other switches start fresh. */
-  switchKind(kind: Expr['kind']): void {
+  switchKind(kind: Expr['kind'] | 'function'): void {
     this.jsonError.set('')
+    if (kind === 'function') {
+      this.pickFunction(this.functions()[0]?.name ?? '')
+      return
+    }
     if (kind === 'rule')
       this.exprChange.emit({ kind: 'rule', rule: exprToRule(this.current()) })
     else if (kind === 'template')

@@ -42,6 +42,8 @@ import { BuilderStore } from './builder-store'
 import { PropField } from './prop-field'
 import { ActionEditor } from './action-editor'
 import { BlockLogicPanel } from './logic/block-logic-panel'
+import { ValidationPanel } from './logic/validation-panel'
+import { TablePanel } from './table-panel'
 
 const SECTIONS: { key: PropDef['section']; label: string }[] = [
   { key: 'content', label: 'Content' },
@@ -73,6 +75,8 @@ const SECTIONS: { key: PropDef['section']; label: string }[] = [
     PropField,
     ActionEditor,
     BlockLogicPanel,
+    ValidationPanel,
+    TablePanel,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './inspector.html',
@@ -83,6 +87,9 @@ export class Inspector {
   readonly styleGroups = STYLE_GROUPS
   readonly themeColors = THEME_COLORS
   readonly actionTypes = ACTION_DEFINITIONS
+  isField(block: Block): boolean {
+    return isFormField(block.type)
+  }
   readonly triggerLabels = TRIGGER_LABELS
   readonly viewports: Viewport[] = ['desktop', 'tablet', 'mobile']
   readonly styleError = signal<Record<string, string>>({})

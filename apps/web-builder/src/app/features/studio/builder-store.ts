@@ -40,6 +40,12 @@ import {
   PageRule,
   RuleEffect,
   createRule,
+  ValidationRule,
+  TableConfig,
+  emptyTable,
+  LogicFunction,
+  Workflow,
+  CellKind,
 } from '../../core/model'
 import { ProjectRepository } from '../../core/persistence/project-repository'
 
@@ -299,65 +305,146 @@ export class BuilderStore {
         ? findBlock(this.draftPage(project).blocks, id)
         : this.draftPage(project)
       if (!owner || owner.actions.length >= LIMITS.actions) return false
-      owner.actions.push(
-        createAction(
-          trigger,
-          type,
-          '',
-          type === 'submitForm'
-            ? 'POST'
-            : type === 'incrementVariable'
-              ? '1'
-              : '',
-        ),
-      )
+      owner.actions.push(newStep(trigger, type))
       return true
     })
+  }
+
+  /** Finds the list that holds an action (top level or inside success/error branches). */
+  private actionHome(
+    list: Action[],
+    actionId: string,
+  ): { list: Action[]; index: number } | null {
+    const index = list.findIndex((item) => item.id === actionId)
+    if (index >= 0) return { list, index }
+    for (const item of list) {
+      for (const branch of [
+        item.onSuccess,
+        item.onError,
+        ...(item.branches ?? []),
+      ]) {
+        if (!branch) continue
+        const found = this.actionHome(branch, actionId)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  /**
+   * Where an edited action lives: `false` = the selected block, `true` = the page, or a workflow
+   * id (string) = that workflow's steps.
+   */
+  private actionOwner(
+    project: Project,
+    pageLevel: boolean | string,
+  ): { actions: Action[]; table?: TableConfig } | undefined {
+    if (typeof pageLevel === 'string') {
+      const workflow = (project.workflows ?? []).find(
+        (item) => item.id === pageLevel,
+      )
+      return workflow ? { actions: workflow.steps } : undefined
+    }
+    return pageLevel
+      ? this.draftPage(project)
+      : findBlock(this.draftPage(project).blocks, this.selectedId())
+  }
+
+  /** An action anywhere on the owner: its events, branches or a table row action's steps. */
+  private findAction(
+    owner: { actions: Action[]; table?: TableConfig } | undefined,
+    actionId: string,
+  ) {
+    if (!owner) return null
+    const table = owner.table
+    for (const list of [
+      owner.actions,
+      ...(table?.rowActions ?? []).map((item) => item.actions),
+      ...(table?.columns ?? []).map((column) => column.onChange ?? []),
+    ]) {
+      const found = this.actionHome(list, actionId)
+      if (found) return found
+    }
+    return null
   }
 
   updateAction(
     actionId: string,
     patch: Partial<Action>,
-    pageLevel = false,
+    pageLevel: boolean | string = false,
   ): void {
-    const id = this.selectedId()
     this.change((project) => {
-      const owner = pageLevel
-        ? this.draftPage(project)
-        : findBlock(this.draftPage(project).blocks, id)
-      const action = owner?.actions.find((item) => item.id === actionId)
-      if (!action) return false
-      Object.assign(action, patch)
+      const owner = this.actionOwner(project, pageLevel)
+      const home = this.findAction(owner, actionId)
+      if (!home) return false
+      Object.assign(home.list[home.index], patch)
       return true
     }, `${actionId}:edit`)
   }
 
-  removeAction(actionId: string, pageLevel = false): void {
-    const id = this.selectedId()
+  /** Merges keys into an action's options (empty values remove the key). */
+  setActionOption(
+    actionId: string,
+    key: string,
+    value: string,
+    pageLevel: boolean | string = false,
+  ): void {
     this.change((project) => {
-      const owner = pageLevel
-        ? this.draftPage(project)
-        : findBlock(this.draftPage(project).blocks, id)
-      if (!owner) return false
-      owner.actions = owner.actions.filter((item) => item.id !== actionId)
+      const owner = this.actionOwner(project, pageLevel)
+      const home = this.findAction(owner, actionId)
+      if (!home) return false
+      const action = home.list[home.index]
+      const options = { ...(action.options ?? {}) }
+      if (value === '') delete options[key]
+      else options[key] = value
+      action.options = Object.keys(options).length ? options : undefined
+      return true
+    }, `${actionId}:${key}`)
+  }
+
+  /** Adds a step to an action's success or error branch. */
+  addBranchAction(
+    parentId: string,
+    branch: 'onSuccess' | 'onError',
+    type: Action['type'],
+    pageLevel: boolean | string = false,
+  ): void {
+    this.change((project) => {
+      const owner = this.actionOwner(project, pageLevel)
+      const home = this.findAction(owner, parentId)
+      if (!home) return false
+      const parent = home.list[home.index]
+      const steps = (parent[branch] ??= [])
+      if (steps.length >= LIMITS.actions) return false
+      steps.push(newStep(parent.trigger, type))
       return true
     })
   }
 
-  moveAction(actionId: string, delta: number, pageLevel = false): void {
-    const id = this.selectedId()
+  removeAction(actionId: string, pageLevel: boolean | string = false): void {
     this.change((project) => {
-      const owner = pageLevel
-        ? this.draftPage(project)
-        : findBlock(this.draftPage(project).blocks, id)
-      if (!owner) return false
-      const index = owner.actions.findIndex((item) => item.id === actionId)
-      const target = index + delta
-      if (index < 0 || target < 0 || target >= owner.actions.length)
-        return false
-      ;[owner.actions[index], owner.actions[target]] = [
-        owner.actions[target],
-        owner.actions[index],
+      const owner = this.actionOwner(project, pageLevel)
+      const home = this.findAction(owner, actionId)
+      if (!home) return false
+      home.list.splice(home.index, 1)
+      return true
+    })
+  }
+
+  moveAction(
+    actionId: string,
+    delta: number,
+    pageLevel: boolean | string = false,
+  ): void {
+    this.change((project) => {
+      const owner = this.actionOwner(project, pageLevel)
+      const home = this.findAction(owner, actionId)
+      if (!home) return false
+      const target = home.index + delta
+      if (target < 0 || target >= home.list.length) return false
+      ;[home.list[home.index], home.list[target]] = [
+        home.list[target],
+        home.list[home.index],
       ]
       return true
     })
@@ -366,6 +453,253 @@ export class BuilderStore {
   // ----- Reactive logic -------------------------------------------------------------------------
 
   /** Sets or clears one of the selected block's bindings (visible, enabled, required, value, options). */
+  // ---- Parallel branches -----------------------------------------------------------------
+  addParallelBranch(
+    actionId: string,
+    pageLevel: boolean | string = false,
+  ): void {
+    this.change((project) => {
+      const home = this.findAction(
+        this.actionOwner(project, pageLevel),
+        actionId,
+      )
+      if (!home) return false
+      const action = home.list[home.index]
+      const branches = (action.branches ??= [])
+      if (branches.length >= 8) return false
+      branches.push([])
+      return true
+    })
+  }
+
+  removeParallelBranch(
+    actionId: string,
+    index: number,
+    pageLevel: boolean | string = false,
+  ): void {
+    this.change((project) => {
+      const home = this.findAction(
+        this.actionOwner(project, pageLevel),
+        actionId,
+      )
+      if (!home) return false
+      home.list[home.index].branches?.splice(index, 1)
+      return true
+    })
+  }
+
+  addParallelStep(
+    actionId: string,
+    index: number,
+    type: Action['type'],
+    pageLevel: boolean | string = false,
+  ): void {
+    this.change((project) => {
+      const home = this.findAction(
+        this.actionOwner(project, pageLevel),
+        actionId,
+      )
+      const branch = home?.list[home.index].branches?.[index]
+      if (!home || !branch || branch.length >= LIMITS.actions) return false
+      branch.push(newStep(home.list[home.index].trigger, type))
+      return true
+    })
+  }
+
+  // ---- Functions and workflows -------------------------------------------------------------
+  addFunction(): void {
+    this.change((project) => {
+      const list = (project.functions ??= [])
+      if (list.length >= 100) return false
+      let name = 'myFunction'
+      for (let n = 2; list.some((item) => item.name === name); n++)
+        name = `myFunction${n}`
+      list.push({
+        id: newId(),
+        name,
+        params: [{ name: 'a' }, { name: 'b' }],
+        body: { kind: 'rule', rule: { '+': [{ var: 'a' }, { var: 'b' }] } },
+      })
+      return true
+    })
+  }
+
+  updateFunction(id: string, patch: Partial<LogicFunction>): void {
+    this.change((project) => {
+      const target = project.functions?.find((item) => item.id === id)
+      if (!target) return false
+      Object.assign(target, patch)
+      return true
+    }, `function:${id}`)
+  }
+
+  removeFunction(id: string): void {
+    this.change((project) => {
+      project.functions = (project.functions ?? []).filter(
+        (item) => item.id !== id,
+      )
+      if (!project.functions.length) delete project.functions
+      return true
+    })
+  }
+
+  addWorkflow(): void {
+    this.change((project) => {
+      const list = (project.workflows ??= [])
+      if (list.length >= 100) return false
+      let name = 'New workflow'
+      for (let n = 2; list.some((item) => item.name === name); n++)
+        name = `New workflow ${n}`
+      list.push({ id: newId(), name, params: [], steps: [] })
+      return true
+    })
+  }
+
+  updateWorkflow(id: string, patch: Partial<Workflow>): void {
+    this.change((project) => {
+      const target = project.workflows?.find((item) => item.id === id)
+      if (!target) return false
+      Object.assign(target, patch)
+      if ('output' in patch && patch.output === undefined) delete target.output
+      return true
+    }, `workflow:${id}`)
+  }
+
+  removeWorkflow(id: string): void {
+    this.change((project) => {
+      project.workflows = (project.workflows ?? []).filter(
+        (item) => item.id !== id,
+      )
+      if (!project.workflows.length) delete project.workflows
+      return true
+    })
+  }
+
+  addWorkflowStep(id: string, type: Action['type']): void {
+    this.change((project) => {
+      const target = project.workflows?.find((item) => item.id === id)
+      if (!target || target.steps.length >= LIMITS.actions) return false
+      target.steps.push(newStep('click', type))
+      return true
+    })
+  }
+
+  /** Edits the selected table's configuration (columns, row actions, merges, groups, highlights). */
+  updateTable(
+    update: (table: TableConfig) => TableConfig | false,
+    key = 'table',
+  ): void {
+    const id = this.selectedId()
+    this.change((project) => {
+      const block = findBlock(this.draftPage(project).blocks, id)
+      if (!block || block.type !== 'table') return false
+      const next = update(structuredClone(block.table ?? emptyTable()))
+      if (next === false) return false
+      block.table = next
+      // Drop custom-cell holders no column uses any more (removed column or another cell type).
+      const used = new Set(
+        next.columns
+          .filter((column) => column.cell === 'blocks' && column.cellBlock)
+          .map((column) => column.cellBlock),
+      )
+      block.children = block.children.filter(
+        (child) => child.type !== 'table-cell' || used.has(child.id),
+      )
+      for (const column of next.columns)
+        if (column.cellBlock && !used.has(column.cellBlock))
+          delete column.cellBlock
+      return true
+    }, `${id}:${key}`)
+  }
+
+  /**
+   * Sets how a column's cells render: display, an editor (input, checkbox, dropdown…) or custom
+   * blocks. Custom blocks get a "table-cell" holder, seeded with the column's value, that the
+   * user designs on the canvas (first row) and that repeats on every row.
+   */
+  setColumnCell(columnId: string, kind: CellKind): void {
+    const id = this.selectedId()
+    this.change((project) => {
+      const block = findBlock(this.draftPage(project).blocks, id)
+      if (!block || block.type !== 'table' || !block.table) return false
+      const column = block.table.columns.find((item) => item.id === columnId)
+      if (!column) return false
+      if (kind === 'display') {
+        delete column.cell
+        delete column.cellWhen
+      } else column.cell = kind
+      if (kind === 'blocks') {
+        if (!block.children.some((child) => child.id === column.cellBlock)) {
+          const holder = createBlock(
+            'table-cell',
+            {},
+            [['text', { text: `{{row.${column.field}}}`, variant: 'body-md' }]],
+            `Cell · ${column.header || column.field}`,
+          )
+          block.children.push(holder)
+          column.cellBlock = holder.id
+          if (
+            countBlocks(project.pages.flatMap((page) => page.blocks)) >
+            LIMITS.blocks
+          )
+            return false
+        }
+      } else if (column.cellBlock) {
+        block.children = block.children.filter(
+          (child) => child.id !== column.cellBlock,
+        )
+        delete column.cellBlock
+      }
+      if (kind === 'checkbox' || kind === 'switch') column.align = 'center'
+      return true
+    })
+  }
+
+  /** Selects a custom cell's holder so its blocks can be designed. */
+  selectCell(columnId: string): void {
+    const column = this.selected()?.table?.columns.find(
+      (item) => item.id === columnId,
+    )
+    if (column?.cellBlock) this.selectedId.set(column.cellBlock)
+  }
+
+  /** Adds an "On change" step to an editable column. */
+  addColumnChangeStep(columnId: string, type: Action['type']): void {
+    this.updateTable((table) => {
+      const column = table.columns.find((item) => item.id === columnId)
+      if (!column || (column.onChange?.length ?? 0) >= LIMITS.actions)
+        return false
+      column.onChange = [...(column.onChange ?? []), newStep('change', type)]
+      return table
+    })
+  }
+
+  /** Adds a step to a table row action. */
+  addRowActionStep(rowActionId: string, type: Action['type']): void {
+    this.updateTable((table) => {
+      const target = table.rowActions.find((item) => item.id === rowActionId)
+      if (!target || target.actions.length >= LIMITS.actions) return false
+      target.actions.push(newStep('click', type))
+      return table
+    })
+  }
+
+  /** Adds, edits, removes or reorders validation rules of the selected field. */
+  updateValidations(
+    update: (rules: ValidationRule[]) => ValidationRule[] | false,
+    key = 'validations',
+  ): void {
+    const id = this.selectedId()
+    this.change((project) => {
+      const block = findBlock(this.draftPage(project).blocks, id)
+      if (!block) return false
+      const next = update(structuredClone(block.validations ?? []))
+      if (next === false) return false
+      block.validations = next.length ? next.slice(0, 30) : undefined
+      return true
+    }, `${id}:${key}`)
+  }
+
   setLogic(
     key: Exclude<keyof BlockLogic, 'props'>,
     expr: Expr | undefined,
@@ -497,7 +831,7 @@ export class BuilderStore {
     this.change((project) => {
       const page = this.draftPage(project)
       if (page.actions.length >= LIMITS.actions) return false
-      page.actions.push(createAction('load', type))
+      page.actions.push(newStep('load', type))
       return true
     })
   }
@@ -872,4 +1206,22 @@ export class BuilderStore {
     await this.save()
     await this.repository.publish(this.project())
   }
+}
+
+/** A new step with sensible starting values (parallel steps start with two branches). */
+function newStep(trigger: Trigger, type: Action['type']): Action {
+  const step = createAction(trigger, type, '', defaultActionValue(type))
+  if (type === 'parallel') step.branches = [[], []]
+  if (type === 'compute') step.expr = { kind: 'template', text: '' }
+  return step
+}
+
+/** Starting value for a new step of the given type. */
+function defaultActionValue(type: Action['type']): string {
+  if (type === 'submitForm') return 'POST'
+  if (type === 'incrementVariable') return '1'
+  if (type === 'wait') return '1000'
+  if (type === 'confirm') return 'Do you want to continue?'
+  if (type === 'showMessage') return 'Saved successfully.'
+  return ''
 }
